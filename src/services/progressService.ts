@@ -11,6 +11,7 @@ import type {
 } from "../types/learning";
 import { supplementalDictionary } from "../data/supplementalDictionary";
 import { DEFAULT_LOCAL_LEARNER_ID } from "./learnerProfileService";
+import { sentenceTargetForWeek, wordTargetFor } from "./learningPlanService";
 
 const STORAGE_KEY = "english-grammar-sense-progress";
 const legacyStorageKeyFor = (version: LearningVersion = "high_school") =>
@@ -429,12 +430,15 @@ export const progressService = {
   },
 
   applyPlacementResult(progress: ProgressState, result: PlacementResult): ProgressState {
-    const dailyTargets =
-      result.studyPace === "gentle"
-        ? { shortSentences: 3, expandedSentences: 1, longSentences: 0, paragraphs: 0, words: 4 }
-        : result.studyPace === "stretch"
-          ? { shortSentences: 6, expandedSentences: 3, longSentences: 1, paragraphs: 1, words: 8 }
-          : { shortSentences: 4, expandedSentences: 2, longSentences: 1, paragraphs: 0, words: 6 };
+    const startingSentences = sentenceTargetForWeek(result.learningVersion, 1);
+    const startingWords = wordTargetFor(result.learningVersion, startingSentences);
+    const dailyTargets = {
+      shortSentences: startingSentences,
+      expandedSentences: result.learningVersion === "primary_junior" ? 1 : 2,
+      longSentences: result.learningVersion === "primary_junior" ? 0 : 1,
+      paragraphs: result.learningVersion === "primary_junior" ? 0 : result.studyPace === "stretch" ? 1 : 0,
+      words: startingWords
+    };
 
     const currentStage = result.level === "high_school_growth" ? 2 : 1;
     const writingLevel = result.transferScore >= 76 ? "paragraph" : "sentence";
@@ -462,7 +466,9 @@ export const progressService = {
         readingLevel,
         writingLevel,
         weakAreas: Array.from(new Set([...progress.longTermProgress.weakAreas, ...result.weakAreas])),
-        nextMilestoneGoal: result.firstWeekPlan[0] ?? result.recommendedStart
+        nextMilestoneGoal:
+          result.firstWeekPlan[0] ??
+          `本周每天完成 ${startingSentences} 个真实场景；下周只根据实际完成情况、错误和生词激活来调整难度。`
       }
     };
   },

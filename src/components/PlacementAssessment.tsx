@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { sentenceTargetForWeek, wordTargetFor } from "../services/learningPlanService";
 import type { LearningVersion, PlacementLevel, PlacementResult, StudyPace } from "../types/learning";
 
 interface PlacementAssessmentProps {
@@ -146,12 +147,15 @@ const scorePlacement = (draft: PlacementDraft, requestedVersion: LearningVersion
           ? "从小初衔接场景开始，先把常用表达说自然。"
           : "从短场景和高频表达开始，任务保持轻量。";
 
-  const firstWeekPlan =
-    studyPace === "gentle"
-      ? ["每天 3 个短场景，先说清意思。", "每次只激活 3-4 个有用词。", "遇到难句先拆意思，不急着讲语法名词。"]
-      : studyPace === "stretch"
-        ? ["每天完成真实场景理解和表达迁移。", "加入短段落逻辑和表达升级。", "用错句诊所整理反复出现的问题。"]
-        : ["每天 4-6 个场景，理解、改写、迁移都做一点。", "生词以场景复现为主。", "一周后根据错误类型调整任务重量。"];
+  const startingSentences = sentenceTargetForWeek(learningVersion, 1);
+  const startingWords = wordTargetFor(learningVersion, startingSentences);
+  const firstWeekPlan = [
+    `前两周每天 ${startingSentences} 个真实场景，不提前生成整套长期计划。`,
+    `每天激活约 ${startingWords} 个有用词，仍然使用当前学段的词库范围。`,
+    weakAreas.length > 0
+      ? `本周优先观察：${weakAreas.join("、")}；下周根据完成情况和错误类型调整难度。`
+      : "本周保持理解、自然表达、迁移使用三类任务平衡；下周根据真实表现调整难度。"
+  ];
 
   return {
     completedAt: new Date().toISOString(),

@@ -5,6 +5,7 @@ export interface LearnerProfile {
   displayName: string;
   learningVersion: LearningVersion;
   studyPace: StudyPace;
+  accessCodeHash?: string;
   placement?: PlacementResult;
   createdAt: string;
   lastActiveAt: string;
@@ -27,6 +28,23 @@ const normalizeName = (name: string) => {
 };
 
 const nowIso = () => new Date().toISOString();
+
+const normalizeAccessCode = (accessCode?: string) => accessCode?.trim() ?? "";
+
+const hashAccessCode = (profileId: string, accessCode?: string) => {
+  const normalized = normalizeAccessCode(accessCode);
+  if (!normalized) return undefined;
+  let hash = 2166136261;
+  const source = `${profileId}:${normalized}`;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `local-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+};
+
+const canAccessProfile = (profile: LearnerProfile, accessCode?: string) =>
+  !profile.accessCodeHash || profile.accessCodeHash === hashAccessCode(profile.id, accessCode);
 
 const readProfiles = (): LearnerProfile[] => {
   try {
@@ -82,14 +100,21 @@ export const learnerProfileService = {
     };
   },
 
-  create(input: { displayName: string; learningVersion: LearningVersion; studyPace?: StudyPace }): LearnerProfileState {
+  create(input: {
+    displayName: string;
+    learningVersion: LearningVersion;
+    studyPace?: StudyPace;
+    accessCode?: string;
+  }): LearnerProfileState {
     const profiles = readProfiles();
     const currentTime = nowIso();
+    const id = crypto.randomUUID();
     const profile: LearnerProfile = {
-      id: crypto.randomUUID(),
+      id,
       displayName: normalizeName(input.displayName),
       learningVersion: input.learningVersion,
       studyPace: input.studyPace ?? "steady",
+      accessCodeHash: hashAccessCode(id, input.accessCode),
       createdAt: currentTime,
       lastActiveAt: currentTime
     };
@@ -104,8 +129,12 @@ export const learnerProfileService = {
     };
   },
 
-  activate(profileId: string): LearnerProfileState {
+  activate(profileId: string, accessCode?: string): LearnerProfileState {
     const currentTime = nowIso();
+    const targetProfile = readProfiles().find((profile) => profile.id === profileId);
+    if (targetProfile && !canAccessProfile(targetProfile, accessCode)) {
+      throw new Error("ACCESS_CODE_REQUIRED");
+    }
     const profiles = readProfiles().map((profile) =>
       profile.id === profileId ? { ...profile, lastActiveAt: currentTime } : profile
     );
@@ -129,6 +158,31 @@ export const learnerProfileService = {
       ...activeProfile,
       ...input,
       displayName: input.displayName ? normalizeName(input.displayName) : activeProfile.displayName,
+      lastActiveAt: currentTime
+    };
+    const nextProfiles = sortProfiles(profiles.map((profile) => (profile.id === updated.id ? updated : profile)));
+
+    writeProfiles(nextProfiles);
+    localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, updated.id);
+
+    return {
+      activeProfile: updated,
+      profiles: nextProfiles
+    };
+  },
+
+  updateActiveAccessCode(accessCode: string): LearnerProfileState {
+    const normalized = normalizeAccessCode(accessCode);
+    if (normalized.length < 4) {
+      throw new Error("ACCESS_CODE_TOO_SHORT");
+    }
+
+    const { activeProfile } = this.load();
+    const profiles = readProfiles();
+    const currentTime = nowIso();
+    const updated = {
+      ...activeProfile,
+      accessCodeHash: hashAccessCode(activeProfile.id, normalized),
       lastActiveAt: currentTime
     };
     const nextProfiles = sortProfiles(profiles.map((profile) => (profile.id === updated.id ? updated : profile)));

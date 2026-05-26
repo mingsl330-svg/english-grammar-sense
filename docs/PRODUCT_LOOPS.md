@@ -16,11 +16,48 @@ The result sets:
 
 - learning version: primary-junior or high-school
 - study pace: gentle, steady, or stretch
-- first-week focus
+- current-week focus
 - weak areas
 - initial progress state
 
 The current implementation uses local rule scoring. Future AI scoring should preserve the same output shape.
+
+## Adaptive Daily Plan
+
+Daily workload is not a fixed global number and should not be generated as a full long-term schedule in advance.
+
+Sentence count rule:
+
+- Primary-junior: weeks 1-2 start at 3 real scenes per day.
+- High-school: weeks 1-2 start at 5 real scenes per day.
+- Every two weeks, add 1 real scene per day.
+- Stop increasing at 10 real scenes per day.
+
+Weekly adjustment rule:
+
+- Use recent completion reports, active unknown words, and repeated mistakes to classify the current week as support, steady, or stretch.
+- Support mode keeps the planned sentence count but makes the next tasks clearer and recycles weak points.
+- Stretch mode keeps the planned sentence count but asks for more natural transfer or sentence upgrading.
+- The scene pool strategy and vocabulary scope remain owned by the existing learning version data; weekly planning must not bypass them.
+
+Only the current week and next immediate focus should be calculated. Do not pre-fill every future week.
+
+## Local Learner Access
+
+Local learner profiles are separate learning accounts on the same browser.
+
+Current MVP rule:
+
+- Progress is saved by learner profile id and learning version.
+- New learner profiles require a local access code.
+- Switching into a protected profile requires the local access code.
+- This prevents casual mis-selection on a shared device, but it is not full cloud authentication.
+
+Future cloud account rule:
+
+- Replace the local guard with real Auth and server-side ownership checks.
+- Keep complete personal answers private by default.
+- Team sharing should publish only explicit progress snapshots or opted-in interaction cards.
 
 ## Copilot Window
 

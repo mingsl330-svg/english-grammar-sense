@@ -60,24 +60,34 @@ export function App() {
     setView("daily");
   };
 
-  const selectLearnerProfile = (profileId: string) => {
-    const nextLearnerState = learnerProfileService.activate(profileId);
-    setLearnerState(nextLearnerState);
-    setLearningVersion(nextLearnerState.activeProfile.learningVersion);
-    setDailyCompletionReport(undefined);
-    setDailySessionState(undefined);
-    setProgress(progressService.load(nextLearnerState.activeProfile.learningVersion, nextLearnerState.activeProfile.id));
-    setView("daily");
+  const selectLearnerProfile = (profileId: string, accessCode?: string) => {
+    try {
+      const nextLearnerState = learnerProfileService.activate(profileId, accessCode);
+      setLearnerState(nextLearnerState);
+      setLearningVersion(nextLearnerState.activeProfile.learningVersion);
+      setDailyCompletionReport(undefined);
+      setDailySessionState(undefined);
+      setProgress(progressService.load(nextLearnerState.activeProfile.learningVersion, nextLearnerState.activeProfile.id));
+      setView("daily");
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const createLearnerProfile = (displayName: string, version: LearningVersion) => {
-    const nextLearnerState = learnerProfileService.create({ displayName, learningVersion: version });
+  const createLearnerProfile = (displayName: string, version: LearningVersion, accessCode: string) => {
+    const nextLearnerState = learnerProfileService.create({ displayName, learningVersion: version, accessCode });
     setLearnerState(nextLearnerState);
     setLearningVersion(version);
     setDailyCompletionReport(undefined);
     setDailySessionState(undefined);
     setProgress(progressService.load(version, nextLearnerState.activeProfile.id));
     setView("daily");
+  };
+
+  const setActiveLearnerAccessCode = (accessCode: string) => {
+    const nextLearnerState = learnerProfileService.updateActiveAccessCode(accessCode);
+    setLearnerState(nextLearnerState);
   };
 
   const updateActiveLearnerProfile = (input: Partial<Pick<LearnerProfile, "displayName" | "studyPace">>) => {
@@ -209,6 +219,7 @@ export function App() {
           onReport={handleCheckInReport}
           onSessionStateChange={handleDailySessionStateChange}
           onUnknownWord={handleUnknownWord}
+          placementResult={activeProfile.placement}
           progress={progress}
         />
       );
@@ -285,6 +296,7 @@ export function App() {
               activeProfile={activeProfile}
               onCreate={createLearnerProfile}
               onSelect={selectLearnerProfile}
+              onSetAccessCode={setActiveLearnerAccessCode}
               onUpdateActive={updateActiveLearnerProfile}
               profiles={learnerState.profiles}
             />

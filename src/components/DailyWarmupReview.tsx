@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getLearningVersionConfig } from "../data/learningVersions";
+import { sentenceTargetForDay } from "../services/learningPlanService";
 import type { CheckInMilestone, CheckInReport, DailyReviewCompletion, LearningVersion, ProgressState } from "../types/learning";
 
 interface DailyWarmupReviewProps {
@@ -39,7 +39,7 @@ export function DailyWarmupReview({ learningVersion = "high_school", onComplete,
   const [milestoneAnswer, setMilestoneAnswer] = useState("");
   const [milestoneChecked, setMilestoneChecked] = useState(false);
   const dayNumber = progress.longTermProgress.currentDay;
-  const versionConfig = getLearningVersionConfig(learningVersion);
+  const sentenceTarget = sentenceTargetForDay(learningVersion, dayNumber);
   const previousReport = progress.checkInReports.find((report) => report.dayNumber === dayNumber - 1);
   const milestone = milestoneDays[dayNumber];
   const reviewReports = buildReviewReports(progress.checkInReports, dayNumber, milestone);
@@ -84,7 +84,7 @@ export function DailyWarmupReview({ learningVersion = "high_school", onComplete,
       </p>
       <h1 className="mt-2 text-2xl font-bold text-ink">Day {dayNumber} starts with yesterday's traces</h1>
       <p className="mt-3 text-sm leading-6 text-muted">
-        Before the next {versionConfig.sceneTarget}-scene mission starts, quickly reactivate a small set of words,
+        Before the next {sentenceTarget}-scene mission starts, quickly reactivate a small set of words,
         sentence patterns, and errors archived from recent learning. This keeps the 240-day path cumulative without
         pushing too much review into one milestone.
       </p>

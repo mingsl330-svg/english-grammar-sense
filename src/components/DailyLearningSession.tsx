@@ -4,6 +4,7 @@ import { getLearningVersionConfig } from "../data/learningVersions";
 import { stageAssessments } from "../data/mockAssessments";
 import type { LookupEntry } from "../services/dictionaryService";
 import { gptService } from "../services/gptService";
+import { getDailyLearningPlan, type DailyLearningPlan } from "../services/learningPlanService";
 import type {
   CheckInReport,
   FeedbackResult,
@@ -11,6 +12,7 @@ import type {
   LearningScenario,
   LearningVersion,
   OutOfSyllabusWordRecord,
+  PlacementResult,
   ProgressState,
   ScenarioSourceCategory,
   UnknownWordRecord
@@ -21,6 +23,7 @@ import { WordLookupBox } from "./WordLookupBox";
 interface DailyLearningSessionProps {
   progress: ProgressState;
   learningVersion: LearningVersion;
+  placementResult?: PlacementResult;
   initialState?: DailySessionState;
   onSessionStateChange?: (state: DailySessionState) => void;
   onReport: (report: CheckInReport) => void;
@@ -61,6 +64,7 @@ export function DailyLearningSession({
   onReport,
   onSessionStateChange,
   onUnknownWord,
+  placementResult,
   progress
 }: DailyLearningSessionProps) {
   const [scenarioIndex, setScenarioIndex] = useState(initialState?.scenarioIndex ?? 0);
@@ -74,6 +78,10 @@ export function DailyLearningSession({
   );
   const [report, setReport] = useState<CheckInReport>();
   const versionConfig = getLearningVersionConfig(learningVersion);
+  const dailyPlan = useMemo(
+    () => getDailyLearningPlan(progress, learningVersion, placementResult),
+    [learningVersion, placementResult, progress]
+  );
 
   useEffect(() => {
     onSessionStateChange?.({
@@ -99,7 +107,7 @@ export function DailyLearningSession({
   const step = scenario.interactionSteps[0];
   const scenarioCount = completed.length;
   const wordCount = Object.keys(activatedWords).length;
-  const needsChallenge = scenarioCount >= versionConfig.sceneTarget && wordCount < versionConfig.wordTarget;
+  const needsChallenge = scenarioCount >= dailyPlan.sentenceTarget && wordCount < dailyPlan.wordTarget;
 
   const randomAssessment = useMemo(() => {
     const tasks = stageAssessments[0].tasks;
@@ -161,11 +169,12 @@ export function DailyLearningSession({
   const nextScenario = () => {
     const nextCompleted = [...completed, { scenario, answer, diagnosis }];
     const nextScenarioCount = nextCompleted.length;
-    const canFinish = nextScenarioCount >= versionConfig.sceneTarget && wordCount >= versionConfig.wordTarget;
+    const canFinish = nextScenarioCount >= dailyPlan.sentenceTarget && wordCount >= dailyPlan.wordTarget;
     if (canFinish) {
       const generatedReport = buildReport({
         activatedWords,
         completed: nextCompleted,
+        dailyPlan,
         progress,
         assessmentPrompt: randomAssessment.prompt
       });
@@ -200,24 +209,32 @@ export function DailyLearningSession({
       <div className="rounded-lg border border-ocean/25 bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-bold text-ocean">Day {progress.longTermProgress.currentDay} Mission</p>
-            <h1 className="mt-1 text-2xl font-bold text-ink">{versionConfig.missionTitle}</h1>
-            <p className="mt-2 text-sm leading-6 text-muted">{versionConfig.missionDescription}</p>
+            <p className="text-sm font-bold text-ocean">
+              Day {progress.longTermProgress.currentDay} · Week {dailyPlan.weekNumber} Mission
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-ink">{dailyPlan.missionTitle}</h1>
+            <p className="mt-2 text-sm leading-6 text-muted">{dailyPlan.missionDescription}</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-full bg-paper px-3 py-1 text-muted">
-              Scenes {Math.min(scenarioCount, versionConfig.sceneTarget)} / {versionConfig.sceneTarget}
+              Scenes {Math.min(scenarioCount, dailyPlan.sentenceTarget)} / {dailyPlan.sentenceTarget}
             </span>
-            <span className={`rounded-full px-3 py-1 ${wordCount >= versionConfig.wordTarget ? "bg-leaf/10 text-leaf" : "bg-paper text-muted"}`}>
-              New words {wordCount} / {versionConfig.wordTarget}
+            <span className={`rounded-full px-3 py-1 ${wordCount >= dailyPlan.wordTarget ? "bg-leaf/10 text-leaf" : "bg-paper text-muted"}`}>
+              New words {wordCount} / {dailyPlan.wordTarget}
+            </span>
+            <span className="rounded-full bg-ocean/10 px-3 py-1 text-ocean">
+              {dailyPlan.difficultyMode}
             </span>
           </div>
         </div>
         {needsChallenge && (
           <p className="mt-3 rounded-md bg-amber/10 p-3 text-sm leading-6 text-amber">
-            {versionConfig.challengeHint}
+            {dailyPlan.challengeHint}
           </p>
         )}
+        <p className="mt-3 rounded-md bg-paper p-3 text-sm leading-6 text-muted">
+          Weekly adjustment: {dailyPlan.weeklyAdjustment}
+        </p>
       </div>
 
       <div className="rounded-lg border border-ocean/25 bg-ocean/5 p-5 shadow-soft">
@@ -323,7 +340,7 @@ export function DailyLearningSession({
               onClick={nextScenario}
               type="button"
             >
-              {scenarioCount + 1 >= versionConfig.sceneTarget && wordCount >= versionConfig.wordTarget ? "Generate summary" : "Next scene"}
+              {scenarioCount + 1 >= dailyPlan.sentenceTarget && wordCount >= dailyPlan.wordTarget ? "Generate summary" : "Next scene"}
             </button>
           </div>
         )}
@@ -348,6 +365,7 @@ function FeedbackLine({ title, value, tone = "default" }: { title: string; value
 function buildReport(input: {
   activatedWords: Record<string, string>;
   completed: Array<{ scenario: LearningScenario; answer: string; diagnosis?: LearningDiagnosis }>;
+  dailyPlan: DailyLearningPlan;
   progress: ProgressState;
   assessmentPrompt: string;
 }): CheckInReport {
@@ -374,8 +392,8 @@ function buildReport(input: {
     writingOutput: input.completed.map((item) => item.answer).filter(Boolean).slice(-3),
     mainMistake: weak ? `Main issue: ${weak}` : "Main issue: answers mostly matched scene goals",
     mistakesEncountered: mistakes.length > 0 ? Array.from(new Set(mistakes)).slice(0, 12) : ["No major repeated mistake today"],
-    bestImprovement: `Completed ${input.completed.length} real scenes and actively activated new words while reading.`,
-    nextDayFocus: "Tomorrow will use today's new words and connector patterns; milestone assessment will prioritize weak points.",
+    bestImprovement: `Completed ${input.completed.length}/${input.dailyPlan.sentenceTarget} real scenes and actively activated new words while reading.`,
+    nextDayFocus: `${input.dailyPlan.nextDayFocus} ${input.dailyPlan.weeklyAdjustment}`,
     streakCount: input.progress.longTermProgress.streakCount + 1,
     scenarioCount: input.completed.length,
     assessmentPrompt: input.assessmentPrompt,
