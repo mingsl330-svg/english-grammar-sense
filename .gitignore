@@ -8,3 +8,4 @@ dist/
 *.tsbuildinfo
 screenlog.*
 .DS_Store
+.vercel
