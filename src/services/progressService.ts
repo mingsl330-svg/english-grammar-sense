@@ -4,15 +4,19 @@ import type {
   DailyReviewCompletion,
   LearningVersion,
   OutOfSyllabusWordRecord,
+  PlacementResult,
   ProgressState,
   StudyRecord,
   UnknownWordRecord
 } from "../types/learning";
 import { supplementalDictionary } from "../data/supplementalDictionary";
+import { DEFAULT_LOCAL_LEARNER_ID } from "./learnerProfileService";
 
 const STORAGE_KEY = "english-grammar-sense-progress";
-const storageKeyFor = (version: LearningVersion = "high_school") =>
+const legacyStorageKeyFor = (version: LearningVersion = "high_school") =>
   version === "high_school" ? STORAGE_KEY : `${STORAGE_KEY}-${version}`;
+const storageKeyFor = (version: LearningVersion = "high_school", learnerId = DEFAULT_LOCAL_LEARNER_ID) =>
+  `${STORAGE_KEY}-${learnerId}-${version}`;
 const milestoneDays: Array<{ day: number; milestone: CheckInMilestone }> = [
   { day: 7, milestone: "day_7" },
   { day: 15, milestone: "day_15" },
@@ -138,6 +142,36 @@ const milestoneForDay = (dayNumber: number): CheckInMilestone => {
   return match?.milestone ?? "day_7";
 };
 
+const freshDefaultProgress = (): ProgressState => ({
+  ...defaultProgress,
+  records: defaultProgress.records.map((record) => ({ ...record, date: new Date().toISOString() })),
+  stageAssessments: [],
+  checkInReports: [],
+  dailyReviewCompletions: [],
+  unknownWords: [],
+  outOfSyllabusWords: [],
+  longTermProgress: {
+    ...defaultProgress.longTermProgress,
+    weakAreas: [...defaultProgress.longTermProgress.weakAreas],
+    grammarCompletedIds: [...defaultProgress.longTermProgress.grammarCompletedIds]
+  },
+  masteredWords: [...defaultProgress.masteredWords],
+  trainedGrammarPoints: [...defaultProgress.trainedGrammarPoints],
+  weakGrammarPoints: [...defaultProgress.weakGrammarPoints]
+});
+
+const parseProgress = (raw: string): ProgressState => {
+  const progress = { ...freshDefaultProgress(), ...JSON.parse(raw) } as ProgressState;
+  const repairedWords = repairUnknownWordSources(progress.unknownWords);
+  const migratedWords = migrateOutOfSyllabusUnknownWords(repairedWords, progress.outOfSyllabusWords ?? []);
+  return {
+    ...progress,
+    dailyReviewCompletions: progress.dailyReviewCompletions ?? [],
+    unknownWords: migratedWords.unknownWords,
+    outOfSyllabusWords: migratedWords.outOfSyllabusWords
+  };
+};
+
 export const defaultProgress: ProgressState = {
   currentStage: 1,
   completedSentences: 0,
@@ -183,26 +217,26 @@ export const defaultProgress: ProgressState = {
 };
 
 export const progressService = {
-  load(version: LearningVersion = "high_school"): ProgressState {
+  load(version: LearningVersion = "high_school", learnerId = DEFAULT_LOCAL_LEARNER_ID): ProgressState {
     try {
-      const raw = localStorage.getItem(storageKeyFor(version));
-      if (!raw) return defaultProgress;
-      const progress = { ...defaultProgress, ...JSON.parse(raw) } as ProgressState;
-      const repairedWords = repairUnknownWordSources(progress.unknownWords);
-      const migratedWords = migrateOutOfSyllabusUnknownWords(repairedWords, progress.outOfSyllabusWords ?? []);
-      return {
-        ...progress,
-        dailyReviewCompletions: progress.dailyReviewCompletions ?? [],
-        unknownWords: migratedWords.unknownWords,
-        outOfSyllabusWords: migratedWords.outOfSyllabusWords
-      };
+      const key = storageKeyFor(version, learnerId);
+      const raw = localStorage.getItem(key);
+      if (raw) return parseProgress(raw);
+
+      const legacyRaw = learnerId === DEFAULT_LOCAL_LEARNER_ID ? localStorage.getItem(legacyStorageKeyFor(version)) : null;
+      if (legacyRaw) {
+        localStorage.setItem(key, legacyRaw);
+        return parseProgress(legacyRaw);
+      }
+
+      return freshDefaultProgress();
     } catch {
-      return defaultProgress;
+      return freshDefaultProgress();
     }
   },
 
-  save(progress: ProgressState, version: LearningVersion = "high_school") {
-    localStorage.setItem(storageKeyFor(version), JSON.stringify(progress));
+  save(progress: ProgressState, version: LearningVersion = "high_school", learnerId = DEFAULT_LOCAL_LEARNER_ID) {
+    localStorage.setItem(storageKeyFor(version, learnerId), JSON.stringify(progress));
   },
 
   addRecord(progress: ProgressState, record: StudyRecord): ProgressState {
@@ -394,8 +428,47 @@ export const progressService = {
     };
   },
 
-  reset(version: LearningVersion = "high_school"): ProgressState {
-    localStorage.removeItem(storageKeyFor(version));
-    return defaultProgress;
+  applyPlacementResult(progress: ProgressState, result: PlacementResult): ProgressState {
+    const dailyTargets =
+      result.studyPace === "gentle"
+        ? { shortSentences: 3, expandedSentences: 1, longSentences: 0, paragraphs: 0, words: 4 }
+        : result.studyPace === "stretch"
+          ? { shortSentences: 6, expandedSentences: 3, longSentences: 1, paragraphs: 1, words: 8 }
+          : { shortSentences: 4, expandedSentences: 2, longSentences: 1, paragraphs: 0, words: 6 };
+
+    const currentStage = result.level === "high_school_growth" ? 2 : 1;
+    const writingLevel = result.transferScore >= 76 ? "paragraph" : "sentence";
+    const readingLevel = result.readingScore >= 76 ? "short_paragraph" : "sentence";
+    const placementRecord: StudyRecord = {
+      id: crypto.randomUUID(),
+      date: result.completedAt,
+      type: "assessment",
+      prompt: "首次能力定位",
+      studentAnswer: result.recommendedStart
+    };
+
+    return {
+      ...progress,
+      currentStage,
+      dailyTargets,
+      imitationAccuracy: Math.max(45, result.expressionScore),
+      longSentenceAccuracy: Math.max(40, result.readingScore - 8),
+      paragraphSummaryQuality: Math.max(40, result.transferScore - 8),
+      weakGrammarPoints: Array.from(new Set([...progress.weakGrammarPoints, ...result.weakAreas])),
+      records: [placementRecord, ...progress.records].slice(0, 30),
+      longTermProgress: {
+        ...progress.longTermProgress,
+        currentDay: 1,
+        readingLevel,
+        writingLevel,
+        weakAreas: Array.from(new Set([...progress.longTermProgress.weakAreas, ...result.weakAreas])),
+        nextMilestoneGoal: result.firstWeekPlan[0] ?? result.recommendedStart
+      }
+    };
+  },
+
+  reset(version: LearningVersion = "high_school", learnerId = DEFAULT_LOCAL_LEARNER_ID): ProgressState {
+    localStorage.removeItem(storageKeyFor(version, learnerId));
+    return freshDefaultProgress();
   }
 };

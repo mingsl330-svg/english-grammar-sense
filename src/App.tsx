@@ -3,9 +3,11 @@ import { Dashboard } from "./components/Dashboard";
 import { DailyLearningSession, DailySummary, type DailySessionState } from "./components/DailyLearningSession";
 import { DailyWarmupReview, shouldShowDailyWarmup } from "./components/DailyWarmupReview";
 import { EssayLogicTrainer } from "./components/EssayLogicTrainer";
+import { LearnerProfileSwitcher } from "./components/LearnerProfileSwitcher";
 import { LongSentenceAnalyzer } from "./components/LongSentenceAnalyzer";
 import { MiniMaxSettingsPage } from "./components/MiniMaxSettingsPage";
 import { ParagraphTrainer } from "./components/ParagraphTrainer";
+import { PlacementAssessment } from "./components/PlacementAssessment";
 import { ProgressPanel } from "./components/ProgressPanel";
 import { ScenarioTrainer } from "./components/ScenarioTrainer";
 import { SentenceExpander } from "./components/SentenceExpander";
@@ -14,12 +16,14 @@ import { StageAssessmentTrainer } from "./components/StageAssessmentTrainer";
 import { StageSelector } from "./components/StageSelector";
 import { VocabularyReviewTrainer } from "./components/VocabularyReviewTrainer";
 import { getLearningVersionConfig, learningVersionConfigs } from "./data/learningVersions";
+import { learnerProfileService, type LearnerProfile } from "./services/learnerProfileService";
 import { progressService } from "./services/progressService";
 import type {
   CheckInReport,
   DailyReviewCompletion,
   LearningVersion,
   OutOfSyllabusWordRecord,
+  PlacementResult,
   ProgressState,
   StageAssessment,
   StageId,
@@ -27,17 +31,14 @@ import type {
   UnknownWordRecord
 } from "./types/learning";
 
-const VERSION_STORAGE_KEY = "english-grammar-sense-learning-version";
-
-const loadLearningVersion = (): LearningVersion => {
-  const stored = localStorage.getItem(VERSION_STORAGE_KEY);
-  return stored === "primary_junior" ? "primary_junior" : "high_school";
-};
-
 export function App() {
+  const [learnerState, setLearnerState] = useState(() => learnerProfileService.load());
+  const activeProfile = learnerState.activeProfile;
   const [view, setView] = useState("daily");
-  const [learningVersion, setLearningVersion] = useState<LearningVersion>(() => loadLearningVersion());
-  const [progress, setProgress] = useState<ProgressState>(() => progressService.load(loadLearningVersion()));
+  const [learningVersion, setLearningVersion] = useState<LearningVersion>(() => activeProfile.learningVersion);
+  const [progress, setProgress] = useState<ProgressState>(() =>
+    progressService.load(activeProfile.learningVersion, activeProfile.id)
+  );
   const [dailyCompletionReport, setDailyCompletionReport] = useState<CheckInReport>();
   const [dailySessionState, setDailySessionState] = useState<DailySessionState>();
   const versionConfig = getLearningVersionConfig(learningVersion);
@@ -45,16 +46,60 @@ export function App() {
   const resetProgressToDayOne = () => {
     setDailyCompletionReport(undefined);
     setDailySessionState(undefined);
-    setProgress(progressService.reset(learningVersion));
+    setProgress(progressService.reset(learningVersion, activeProfile.id));
     setView("daily");
   };
 
   const switchLearningVersion = (nextVersion: LearningVersion) => {
-    localStorage.setItem(VERSION_STORAGE_KEY, nextVersion);
+    const nextLearnerState = learnerProfileService.updateActive({ learningVersion: nextVersion });
+    setLearnerState(nextLearnerState);
     setLearningVersion(nextVersion);
     setDailyCompletionReport(undefined);
     setDailySessionState(undefined);
-    setProgress(progressService.load(nextVersion));
+    setProgress(progressService.load(nextVersion, nextLearnerState.activeProfile.id));
+    setView("daily");
+  };
+
+  const selectLearnerProfile = (profileId: string) => {
+    const nextLearnerState = learnerProfileService.activate(profileId);
+    setLearnerState(nextLearnerState);
+    setLearningVersion(nextLearnerState.activeProfile.learningVersion);
+    setDailyCompletionReport(undefined);
+    setDailySessionState(undefined);
+    setProgress(progressService.load(nextLearnerState.activeProfile.learningVersion, nextLearnerState.activeProfile.id));
+    setView("daily");
+  };
+
+  const createLearnerProfile = (displayName: string, version: LearningVersion) => {
+    const nextLearnerState = learnerProfileService.create({ displayName, learningVersion: version });
+    setLearnerState(nextLearnerState);
+    setLearningVersion(version);
+    setDailyCompletionReport(undefined);
+    setDailySessionState(undefined);
+    setProgress(progressService.load(version, nextLearnerState.activeProfile.id));
+    setView("daily");
+  };
+
+  const updateActiveLearnerProfile = (input: Partial<Pick<LearnerProfile, "displayName" | "studyPace">>) => {
+    setLearnerState(learnerProfileService.updateActive(input));
+  };
+
+  const handlePlacementComplete = (result: PlacementResult) => {
+    const nextLearnerState = learnerProfileService.updateActive({
+      learningVersion: result.learningVersion,
+      placement: result,
+      studyPace: result.studyPace
+    });
+    const placementProgress = progressService.applyPlacementResult(
+      progressService.load(result.learningVersion, nextLearnerState.activeProfile.id),
+      result
+    );
+
+    setLearnerState(nextLearnerState);
+    setLearningVersion(result.learningVersion);
+    setDailyCompletionReport(undefined);
+    setDailySessionState(undefined);
+    setProgress(placementProgress);
     setView("daily");
   };
 
@@ -66,8 +111,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    progressService.save(progress, learningVersion);
-  }, [learningVersion, progress]);
+    progressService.save(progress, learningVersion, activeProfile.id);
+  }, [activeProfile.id, learningVersion, progress]);
 
   const handleRecord = (record: StudyRecord) => {
     setProgress((current) => progressService.addRecord(current, record));
@@ -115,6 +160,9 @@ export function App() {
 
   const content = useMemo(() => {
     const activeUnknownWords = progress.unknownWords.filter((word) => !word.mastered);
+    if (view === "daily" && !activeProfile.placement) {
+      return <PlacementAssessment learnerName={activeProfile.displayName} onComplete={handlePlacementComplete} />;
+    }
     if (view === "daily" && dailyCompletionReport) {
       return (
         <DailySummary
@@ -208,6 +256,8 @@ export function App() {
     dailyCompletionReport,
     dailySessionState,
     handleDailySessionStateChange,
+    activeProfile.displayName,
+    activeProfile.placement,
     learningVersion,
     progress,
     versionConfig.vocabularyReviewTrigger,
@@ -220,9 +270,18 @@ export function App() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-ocean">Scenario English Coach</p>
-            <h1 className="text-lg font-bold text-ink">从一个真实场景开始学习 · {versionConfig.label}</h1>
+            <h1 className="text-lg font-bold text-ink">
+              从一个真实场景开始学习 · {activeProfile.displayName} · {versionConfig.label}
+            </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <LearnerProfileSwitcher
+              activeProfile={activeProfile}
+              onCreate={createLearnerProfile}
+              onSelect={selectLearnerProfile}
+              onUpdateActive={updateActiveLearnerProfile}
+              profiles={learnerState.profiles}
+            />
             {(Object.keys(learningVersionConfigs) as LearningVersion[]).map((version) => (
               <button
                 className={`rounded-md px-3 py-2 text-sm font-semibold ${

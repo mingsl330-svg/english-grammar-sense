@@ -4,6 +4,34 @@ export type Difficulty = "简单" | "中等" | "较难";
 
 export type LearningVersion = "high_school" | "primary_junior";
 
+export type StudyPace = "gentle" | "steady" | "stretch";
+
+export type PlacementLevel =
+  | "primary_junior_foundation"
+  | "junior_bridge"
+  | "high_school_foundation"
+  | "high_school_growth";
+
+export interface PlacementResult {
+  completedAt: string;
+  level: PlacementLevel;
+  learningVersion: LearningVersion;
+  studyPace: StudyPace;
+  readingScore: number;
+  expressionScore: number;
+  transferScore: number;
+  overallScore: number;
+  strengths: string[];
+  weakAreas: string[];
+  recommendedStart: string;
+  firstWeekPlan: string[];
+  evidence: {
+    sceneUnderstanding: string;
+    naturalRewrite: string;
+    transferExpression: string;
+  };
+}
+
 export type ScenarioType =
   | "daily_conversation"
   | "school_life"
