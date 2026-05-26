@@ -3,6 +3,7 @@ import type { LearningVersion, PlacementLevel, PlacementResult, StudyPace } from
 
 interface PlacementAssessmentProps {
   learnerName: string;
+  learningVersion: LearningVersion;
   onComplete: (result: PlacementResult) => void;
 }
 
@@ -18,34 +19,90 @@ const englishTokens = (text: string) => text.toLowerCase().match(/[a-z']+/g) ?? 
 
 const clampScore = (score: number) => Math.max(20, Math.min(95, score));
 
-const scorePlacement = (draft: PlacementDraft): PlacementResult => {
+const placementTasks: Record<LearningVersion, {
+  sceneKeywords: string[];
+  rewriteNaturalSignals: string[];
+  rewriteProblemSignals: string[];
+  transferSignals: string[];
+  tasks: {
+    label: string;
+    prompt: string;
+    placeholder: string;
+  }[];
+}> = {
+  primary_junior: {
+    sceneKeywords: ["忘", "notebook", "本子", "借", "look", "看", "share", "help", "帮", "homework", "作业"],
+    rewriteNaturalSignals: ["really like", "like english", "enjoy", "my english class", "teacher is kind", "teacher is nice"],
+    rewriteProblemSignals: ["very like"],
+    transferSignals: ["thank", "thanks", "help", "homework", "will", "next", "try", "again"],
+    tasks: [
+      {
+        label: "1. 读懂同学的意思",
+        prompt: "A classmate says: “I forgot my notebook. Can I look at yours?” 你觉得他想做什么？可以用中文或英文回答。",
+        placeholder: "例如：他忘带本子了，想借我看一下，或者让我帮他跟上课堂。"
+      },
+      {
+        label: "2. 把句子说自然",
+        prompt: "把这句话改得更像真实英语：I very like English class because my teacher is nice.",
+        placeholder: "例如：I really like English class because my teacher is nice."
+      },
+      {
+        label: "3. 写一句真实感谢",
+        prompt: "你的同学帮你完成一道英语题。写 1 句英文感谢他，再写 1 句你接下来会做什么。",
+        placeholder: "例如：Thank you for helping me. I will try it again by myself."
+      }
+    ]
+  },
+  high_school: {
+    sceneKeywords: ["累", "困", "tired", "stayed up", "熬夜", "不想", "不能", "can't", "first", "present", "上台", "help", "帮", "先", "推迟"],
+    rewriteNaturalSignals: ["really enjoy", "really like", "enjoy", "love", "make friends", "meet friends", "meet new friends", "make new friends"],
+    rewriteProblemSignals: ["very like", "have many friends"],
+    transferSignals: ["thank", "thanks", "thank you", "grateful", "help", "helped", "practice", "speaking", "will", "next", "keep", "try"],
+    tasks: [
+      {
+        label: "1. 读懂话外意思",
+        prompt: "A teammate says: “I stayed up finishing the poster, but I don't think I can present first today.” 你觉得他真正想表达什么？可以用中文或英文回答。",
+        placeholder: "例如：他昨晚熬夜做海报，现在很累或没准备好，希望别人先上台或给他一点帮助。"
+      },
+      {
+        label: "2. 把表达改自然",
+        prompt: "把这句话改得更像真实英语：I very like this club because it lets me have many friends.",
+        placeholder: "例如：I really enjoy this club because I can meet new friends here."
+      },
+      {
+        label: "3. 迁移到自己的表达",
+        prompt: "你的同学帮你练习口语。写 1-2 句英文感谢他，并说说你下一步会怎么做。",
+        placeholder: "例如：Thank you for helping me practice speaking. I will keep trying and speak more clearly next time."
+      }
+    ]
+  }
+};
+
+const hasAnswer = (text: string) => text.trim().length >= 2;
+
+const scorePlacement = (draft: PlacementDraft, requestedVersion: LearningVersion): PlacementResult => {
+  const taskSet = placementTasks[requestedVersion];
   const scene = draft.sceneUnderstanding.trim().toLowerCase();
   const rewrite = draft.naturalRewrite.trim().toLowerCase();
   const transfer = draft.transferExpression.trim().toLowerCase();
   const rewriteTokens = englishTokens(rewrite);
   const transferTokens = englishTokens(transfer);
 
-  let readingScore = 35;
-  if (scene.length >= 18) readingScore += 12;
-  if (includesAny(scene, ["累", "困", "tired", "stayed up", "熬夜"])) readingScore += 12;
-  if (includesAny(scene, ["不想", "不能", "can not", "can't", "unable", "first", "present", "上台"])) readingScore += 16;
-  if (includesAny(scene, ["help", "帮", "换", "later", "support", "先", "推迟"])) readingScore += 14;
-  if (includesAny(scene, ["nervous", "紧张", "压力", "担心"])) readingScore += 8;
+  let readingScore = requestedVersion === "primary_junior" ? 40 : 35;
+  if (scene.length >= (requestedVersion === "primary_junior" ? 8 : 18)) readingScore += 12;
+  if (includesAny(scene, taskSet.sceneKeywords)) readingScore += requestedVersion === "primary_junior" ? 30 : 42;
+  if (includesAny(scene, ["because", "所以", "because he", "因为", "want", "想"])) readingScore += 8;
 
-  let expressionScore = 35;
-  if (rewriteTokens.length >= 7) expressionScore += 10;
-  if (includesAny(rewrite, ["really like", "enjoy", "love", "like being", "like this club"])) expressionScore += 16;
-  if (includesAny(rewrite, ["make friends", "meet friends", "meet new friends", "make new friends"])) expressionScore += 18;
+  let expressionScore = requestedVersion === "primary_junior" ? 40 : 35;
+  if (rewriteTokens.length >= (requestedVersion === "primary_junior" ? 5 : 7)) expressionScore += 10;
+  if (includesAny(rewrite, taskSet.rewriteNaturalSignals)) expressionScore += 28;
   if (includesAny(rewrite, ["because", "as", "since"])) expressionScore += 8;
-  if (rewrite.includes("very like")) expressionScore -= 18;
-  if (rewrite.includes("have many friends")) expressionScore -= 8;
+  if (includesAny(rewrite, taskSet.rewriteProblemSignals)) expressionScore -= 18;
 
-  let transferScore = 35;
-  if (transferTokens.length >= 8) transferScore += 12;
-  if (transferTokens.length >= 16) transferScore += 10;
-  if (includesAny(transfer, ["thank", "thanks", "thank you", "grateful"])) transferScore += 14;
-  if (includesAny(transfer, ["help", "helped", "practice", "speaking"])) transferScore += 14;
-  if (includesAny(transfer, ["will", "next", "keep", "try", "going to", "tomorrow"])) transferScore += 12;
+  let transferScore = requestedVersion === "primary_junior" ? 40 : 35;
+  if (transferTokens.length >= (requestedVersion === "primary_junior" ? 5 : 8)) transferScore += 12;
+  if (transferTokens.length >= (requestedVersion === "primary_junior" ? 10 : 16)) transferScore += 10;
+  if (includesAny(transfer, taskSet.transferSignals)) transferScore += requestedVersion === "primary_junior" ? 26 : 40;
   if (/[。！？]/.test(draft.transferExpression) && transferTokens.length < 5) transferScore -= 12;
 
   readingScore = clampScore(readingScore);
@@ -57,15 +114,15 @@ const scorePlacement = (draft: PlacementDraft): PlacementResult => {
   let learningVersion: LearningVersion = "primary_junior";
   let studyPace: StudyPace = "gentle";
 
-  if (overallScore >= 78 && transferScore >= 70) {
+  if (requestedVersion === "high_school" && overallScore >= 78 && transferScore >= 70) {
     level = "high_school_growth";
     learningVersion = "high_school";
     studyPace = "stretch";
-  } else if (overallScore >= 62) {
+  } else if (requestedVersion === "high_school" && overallScore >= 56) {
     level = "high_school_foundation";
     learningVersion = "high_school";
-    studyPace = "steady";
-  } else if (overallScore >= 46) {
+    studyPace = overallScore >= 72 ? "stretch" : "steady";
+  } else if (overallScore >= (requestedVersion === "primary_junior" ? 54 : 46)) {
     level = "junior_bridge";
     learningVersion = "primary_junior";
     studyPace = "steady";
@@ -113,24 +170,25 @@ const scorePlacement = (draft: PlacementDraft): PlacementResult => {
   };
 };
 
-export function PlacementAssessment({ learnerName, onComplete }: PlacementAssessmentProps) {
+export function PlacementAssessment({ learnerName, learningVersion, onComplete }: PlacementAssessmentProps) {
   const [draft, setDraft] = useState<PlacementDraft>({
     sceneUnderstanding: "",
     naturalRewrite: "",
     transferExpression: ""
   });
   const [previewResult, setPreviewResult] = useState<PlacementResult>();
+  const taskSet = placementTasks[learningVersion];
 
   const canSubmit = useMemo(
     () =>
-      draft.sceneUnderstanding.trim().length >= 6 &&
-      englishTokens(draft.naturalRewrite).length >= 4 &&
-      englishTokens(draft.transferExpression).length >= 4,
+      hasAnswer(draft.sceneUnderstanding) &&
+      hasAnswer(draft.naturalRewrite) &&
+      hasAnswer(draft.transferExpression),
     [draft]
   );
 
   const complete = () => {
-    const result = scorePlacement(draft);
+    const result = scorePlacement(draft, learningVersion);
     setPreviewResult(result);
     onComplete(result);
   };
@@ -146,25 +204,19 @@ export function PlacementAssessment({ learnerName, onComplete }: PlacementAssess
 
         <div className="mt-6 space-y-5">
           <PlacementTask
-            label="1. 读懂话外意思"
-            prompt="A teammate says: “I stayed up finishing the poster, but I don't think I can present first today.” 你觉得他真正想表达什么？可以用中文或英文回答。"
+            {...taskSet.tasks[0]}
             value={draft.sceneUnderstanding}
             onChange={(value) => setDraft((current) => ({ ...current, sceneUnderstanding: value }))}
-            placeholder="例如：他昨晚熬夜做海报，现在很累或没准备好，希望别人先上台或给他一点帮助。"
           />
           <PlacementTask
-            label="2. 把表达改自然"
-            prompt="把这句话改得更像真实英语：I very like this club because it lets me have many friends."
+            {...taskSet.tasks[1]}
             value={draft.naturalRewrite}
             onChange={(value) => setDraft((current) => ({ ...current, naturalRewrite: value }))}
-            placeholder="例如：I really enjoy this club because I can meet new friends here."
           />
           <PlacementTask
-            label="3. 迁移到自己的表达"
-            prompt="你的同学帮你练习口语。写 1-2 句英文感谢他，并说说你下一步会怎么做。"
+            {...taskSet.tasks[2]}
             value={draft.transferExpression}
             onChange={(value) => setDraft((current) => ({ ...current, transferExpression: value }))}
-            placeholder="例如：Thank you for helping me practice speaking. I will keep trying and speak more clearly next time."
           />
         </div>
 
@@ -177,7 +229,7 @@ export function PlacementAssessment({ learnerName, onComplete }: PlacementAssess
           >
             生成学习起点
           </button>
-          {!canSubmit && <span className="text-sm text-muted">每段写一点真实反应即可，不需要长答案。</span>}
+          {!canSubmit && <span className="text-sm text-muted">三题各写一点即可，可以很短。</span>}
         </div>
       </div>
 

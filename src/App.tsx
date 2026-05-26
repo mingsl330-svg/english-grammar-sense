@@ -161,7 +161,13 @@ export function App() {
   const content = useMemo(() => {
     const activeUnknownWords = progress.unknownWords.filter((word) => !word.mastered);
     if (view === "daily" && !activeProfile.placement) {
-      return <PlacementAssessment learnerName={activeProfile.displayName} onComplete={handlePlacementComplete} />;
+      return (
+        <PlacementAssessment
+          learnerName={activeProfile.displayName}
+          learningVersion={learningVersion}
+          onComplete={handlePlacementComplete}
+        />
+      );
     }
     if (view === "daily" && dailyCompletionReport) {
       return (
