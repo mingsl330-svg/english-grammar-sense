@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getChallengeScenarioPool, getDailyScenarioPool } from "../data/dailyScenarioPool";
 import { getLearningVersionConfig } from "../data/learningVersions";
 import { stageAssessments } from "../data/mockAssessments";
 import { buildAdaptiveScenarioPool } from "../services/adaptiveScenarioService";
+import type { DailyVocabularyTarget } from "../services/dailyVocabularyService";
 import type { LookupEntry } from "../services/dictionaryService";
 import { gptService } from "../services/gptService";
 import { getDailyLearningPlan, type DailyLearningPlan } from "../services/learningPlanService";
@@ -19,6 +20,8 @@ import type {
   UnknownWordRecord
 } from "../types/learning";
 import { ClickableEnglish } from "./ClickableEnglish";
+import { DailyVocabularyQuiz } from "./DailyVocabularyQuiz";
+import { DailyVocabularyTargetPanel } from "./DailyVocabularyTargetPanel";
 import { LearningCopilot } from "./LearningCopilot";
 
 interface DailyLearningSessionProps {
@@ -77,6 +80,7 @@ export function DailyLearningSession({
   const [completed, setCompleted] = useState<Array<{ scenario: LearningScenario; answer: string; diagnosis?: LearningDiagnosis }>>(
     initialState?.completed ?? []
   );
+  const [dailyVocabularyTargets, setDailyVocabularyTargets] = useState<DailyVocabularyTarget[]>([]);
   const [report, setReport] = useState<CheckInReport>();
   const versionConfig = getLearningVersionConfig(learningVersion);
   const dailyPlan = useMemo(
@@ -110,11 +114,18 @@ export function DailyLearningSession({
     [learningVersion, progress.longTermProgress.currentDay]
   );
   const scenarioPool = scenarioIndex < dailyScenarioPool.length ? dailyScenarioPool : challengeScenarioPool;
+  const plannedDailyScenarios = useMemo(
+    () => dailyScenarioPool.slice(0, dailyPlan.sentenceTarget),
+    [dailyPlan.sentenceTarget, dailyScenarioPool]
+  );
   const scenario = scenarioPool[scenarioIndex % scenarioPool.length];
   const step = scenario.interactionSteps[0];
   const scenarioCount = completed.length;
   const wordCount = Object.keys(activatedWords).length;
-  const needsChallenge = scenarioCount >= dailyPlan.sentenceTarget && wordCount < dailyPlan.wordTarget;
+  const needsChallenge = scenarioCount >= dailyPlan.sentenceTarget && dailyVocabularyTargets.length < dailyPlan.wordTarget;
+  const handleDailyVocabularyTargetsChange = useCallback((targets: DailyVocabularyTarget[]) => {
+    setDailyVocabularyTargets(targets);
+  }, []);
 
   const randomAssessment = useMemo(() => {
     const tasks = stageAssessments[0].tasks;
@@ -176,11 +187,12 @@ export function DailyLearningSession({
   const nextScenario = () => {
     const nextCompleted = [...completed, { scenario, answer, diagnosis }];
     const nextScenarioCount = nextCompleted.length;
-    const canFinish = nextScenarioCount >= dailyPlan.sentenceTarget && wordCount >= dailyPlan.wordTarget;
+    const canFinish = nextScenarioCount >= dailyPlan.sentenceTarget;
     if (canFinish) {
       const generatedReport = buildReport({
         activatedWords,
         completed: nextCompleted,
+        dailyVocabularyTargets,
         dailyPlan,
         progress,
         assessmentPrompt: randomAssessment.prompt
@@ -243,6 +255,14 @@ export function DailyLearningSession({
           Weekly adjustment: {dailyPlan.weeklyAdjustment}
         </p>
       </div>
+
+      <DailyVocabularyTargetPanel
+        activatedWords={activatedWords}
+        learningVersion={learningVersion}
+        onTargetsChange={handleDailyVocabularyTargetsChange}
+        scenarios={plannedDailyScenarios}
+        targetCount={dailyPlan.wordTarget}
+      />
 
       <div className="rounded-lg border border-ocean/25 bg-ocean/5 p-5 shadow-soft">
         <div className="flex flex-wrap gap-2">
@@ -351,7 +371,7 @@ export function DailyLearningSession({
               onClick={nextScenario}
               type="button"
             >
-              {scenarioCount + 1 >= dailyPlan.sentenceTarget && wordCount >= dailyPlan.wordTarget ? "Generate summary" : "Next scene"}
+              {scenarioCount + 1 >= dailyPlan.sentenceTarget ? "Generate summary" : "Next scene"}
             </button>
           </div>
         )}
@@ -376,6 +396,7 @@ function FeedbackLine({ title, value, tone = "default" }: { title: string; value
 function buildReport(input: {
   activatedWords: Record<string, string>;
   completed: Array<{ scenario: LearningScenario; answer: string; diagnosis?: LearningDiagnosis }>;
+  dailyVocabularyTargets: DailyVocabularyTarget[];
   dailyPlan: DailyLearningPlan;
   progress: ProgressState;
   assessmentPrompt: string;
@@ -395,12 +416,23 @@ function buildReport(input: {
   const reviewQueue = Array.from(
     new Set([...Object.values(input.activatedWords), ...grammar.slice(0, 5), ...mistakes.slice(0, 5)])
   ).slice(0, 18);
-  const reviewWords = Object.values(input.activatedWords).slice(0, 8);
+  const targetWords = input.dailyVocabularyTargets.length > 0
+    ? input.dailyVocabularyTargets
+    : Object.values(input.activatedWords).map((word) => ({
+        word,
+        normalized: word.toLowerCase(),
+        meaning: "Review this word from today's sentence.",
+        example: "Use this word in one real sentence.",
+        sourceSentence: "",
+        sourceTitle: "Today's learning"
+      }));
+  const reviewWords = targetWords.map((target) => target.word).slice(0, 8);
   return {
     id: crypto.randomUUID(),
     dayNumber: input.progress.longTermProgress.currentDay,
     completedTasks: input.completed.map((item) => item.scenario.title),
-    newWordsLearned: Object.values(input.activatedWords),
+    newWordsLearned: reviewWords,
+    dailyVocabularyTargets: targetWords,
     grammarPracticed: grammar,
     grammarReviewExamples,
     writingOutput: input.completed.map((item) => item.answer).filter(Boolean).slice(-3),
@@ -482,6 +514,7 @@ export function DailySummary({
   onStartNextDay: () => void;
   report: CheckInReport;
 }) {
+  const [wordGoalPassed, setWordGoalPassed] = useState(!report.dailyVocabularyTargets?.length);
   return (
     <section className="mx-auto max-w-5xl rounded-lg border border-line bg-white p-5 shadow-soft sm:p-6">
       <p className="text-sm font-semibold text-ocean">Daily Summary</p>
@@ -522,6 +555,14 @@ export function DailySummary({
         )}
       </div>
 
+      <DailyVocabularyQuiz
+        onPass={() => setWordGoalPassed(true)}
+        targets={(report.dailyVocabularyTargets ?? []).map((target) => ({
+          ...target,
+          sourceTitle: "Daily word goal"
+        }))}
+      />
+
       <LearningCopilot
         contextLabel="Daily summary"
         currentPrompt={report.nextDayFocus}
@@ -542,12 +583,18 @@ export function DailySummary({
 
       <div className="mt-5 flex flex-wrap gap-3">
         <button
-          className="rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white hover:bg-ocean/90"
+          className="rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white hover:bg-ocean/90 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!wordGoalPassed}
           onClick={onStartNextDay}
           type="button"
         >
           Continue Day {report.dayNumber + 1}
         </button>
+        {!wordGoalPassed && (
+          <span className="self-center text-sm font-semibold text-muted">
+            Complete the word goal check before the next day.
+          </span>
+        )}
         {onReviewWords && report.newWordsLearned.length > 0 && (
           <button
             className="rounded-md bg-leaf px-5 py-3 text-sm font-bold text-white hover:bg-leaf/90"

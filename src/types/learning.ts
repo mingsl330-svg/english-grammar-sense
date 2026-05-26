@@ -487,6 +487,14 @@ export interface CheckInReport {
   dayNumber: number;
   completedTasks: string[];
   newWordsLearned: string[];
+  dailyVocabularyTargets?: Array<{
+    word: string;
+    normalized: string;
+    meaning: string;
+    phonetic?: string;
+    example: string;
+    sourceSentence: string;
+  }>;
   grammarPracticed: string[];
   grammarReviewExamples?: Array<{
     grammar: string;

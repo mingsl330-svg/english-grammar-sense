@@ -57,6 +57,14 @@ Daily summaries must create actionable review data:
 - new-scene focus after review
 - direct route into vocabulary review even when the automatic threshold has not been reached
 
+Daily vocabulary target rule:
+
+- Each day has an explicit target-word window built from the planned sentence scenes.
+- These target words are required learning goals, not optional lookup history.
+- After the daily sentence scenes, run a mixed Chinese-English check before the learner can continue to the next day.
+- Early checks should be light: English-to-Chinese recognition and Chinese-to-English spelling with hints.
+- The summary should make the achievement visible so the learner knows exactly what was learned today.
+
 ## Local Learner Access
 
 Local learner profiles are separate learning accounts on the same browser.
