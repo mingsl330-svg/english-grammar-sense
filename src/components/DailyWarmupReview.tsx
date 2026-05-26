@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { sentenceTargetForDay } from "../services/learningPlanService";
 import type { CheckInMilestone, CheckInReport, DailyReviewCompletion, LearningVersion, ProgressState } from "../types/learning";
+import { LearningCopilot } from "./LearningCopilot";
 
 interface DailyWarmupReviewProps {
   learningVersion?: LearningVersion;
@@ -115,6 +116,17 @@ export function DailyWarmupReview({ learningVersion = "high_school", onComplete,
             <MiniList title="Final outputs" items={previousReport.writingOutput} />
             <MiniList title="Assessment seed" items={[previousReport.assessmentPrompt ?? "Random review task"]} />
           </div>
+          {previousReport.grammarReviewExamples && previousReport.grammarReviewExamples.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {previousReport.grammarReviewExamples.slice(0, 4).map((item) => (
+                <div className="rounded-md bg-white p-3" key={`${item.grammar}-${item.simpleExample}`}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-leaf">{item.grammar}</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-ink">{item.simpleExample}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">{item.tryThis}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -176,6 +188,17 @@ export function DailyWarmupReview({ learningVersion = "high_school", onComplete,
         >
           Start Day {dayNumber} mission
         </button>
+      </div>
+
+      <div className="mt-5">
+        <LearningCopilot
+          contextLabel="Warm-up review"
+          currentPrompt={previousReport?.nextDayReviewPlan?.firstReviewPrompt ?? "Review yesterday before new scenes."}
+          learningVersion={learningVersion}
+          recentReport={previousReport}
+          sourceSentence={previousReport?.writingOutput[0] ?? previousReport?.completedTasks[0]}
+          unknownWords={progress.unknownWords.filter((word) => !word.mastered)}
+        />
       </div>
     </section>
   );

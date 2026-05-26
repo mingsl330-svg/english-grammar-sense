@@ -42,6 +42,21 @@ Weekly adjustment rule:
 
 Only the current week and next immediate focus should be calculated. Do not pre-fill every future week.
 
+Scenario order must be learner-adaptive:
+
+- Day 1 starts with a placement bridge scenario tied to the learner's first-login result.
+- Later days start with review-first behavior: warm-up from the previous report, then a first scene that reuses yesterday's words, grammar, or mistake pattern.
+- New scenes come only after that review bridge.
+- The base scene pools and vocabulary scope remain intact; adaptation reorders and prepends bridges instead of replacing the whole curriculum.
+
+Daily summaries must create actionable review data:
+
+- words to actively reuse
+- grammar patterns with simple examples
+- first prompt for tomorrow's review
+- new-scene focus after review
+- direct route into vocabulary review even when the automatic threshold has not been reached
+
 ## Local Learner Access
 
 Local learner profiles are separate learning accounts on the same browser.
@@ -71,6 +86,7 @@ Core rules:
 - The Copilot should help with word lookup, sentence rewriting, scenario explanation, pronunciation hints, task clarification, and gentle feedback.
 - The Copilot should avoid grammar-label-first explanations unless the learner asks for them.
 - The Copilot should keep the learner inside the current learning flow instead of opening many separate tools.
+- The Copilot must appear during scenes, warm-up review, and daily summary because low-vocabulary learners may need help understanding the prompt itself.
 
 Feedback collection:
 

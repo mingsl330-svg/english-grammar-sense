@@ -182,10 +182,16 @@ export function App() {
     if (view === "daily" && dailyCompletionReport) {
       return (
         <DailySummary
+          learningVersion={learningVersion}
           onFinishToday={() => {
             setDailyCompletionReport(undefined);
             setDailySessionState(undefined);
             setView("records");
+          }}
+          onReviewWords={() => {
+            setDailyCompletionReport(undefined);
+            setDailySessionState(undefined);
+            setView("vocabulary");
           }}
           onStartNextDay={() => {
             setDailyCompletionReport(undefined);
@@ -193,6 +199,17 @@ export function App() {
             setView("daily");
           }}
           report={dailyCompletionReport}
+        />
+      );
+    }
+    if (view === "vocabulary") {
+      return (
+        <VocabularyReviewTrainer
+          learningVersion={learningVersion}
+          onPass={handleVocabularyReviewPass}
+          outOfSyllabusWords={progress.outOfSyllabusWords}
+          targetCount={Math.max(1, Math.min(activeUnknownWords.length, versionConfig.vocabularyReviewTrigger))}
+          words={activeUnknownWords}
         />
       );
     }

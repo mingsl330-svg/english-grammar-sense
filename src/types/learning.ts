@@ -488,6 +488,12 @@ export interface CheckInReport {
   completedTasks: string[];
   newWordsLearned: string[];
   grammarPracticed: string[];
+  grammarReviewExamples?: Array<{
+    grammar: string;
+    sourceSentence: string;
+    simpleExample: string;
+    tryThis: string;
+  }>;
   writingOutput: string[];
   readingPerformance?: string;
   mainMistake: string;
@@ -499,6 +505,12 @@ export interface CheckInReport {
   assessmentPrompt?: string;
   milestoneAssessmentFocus?: string[];
   reviewQueue?: string[];
+  nextDayReviewPlan?: {
+    reviewWords: string[];
+    grammarFocus: string[];
+    firstReviewPrompt: string;
+    newSceneFocus: string;
+  };
 }
 
 export interface DailyReviewCompletion {

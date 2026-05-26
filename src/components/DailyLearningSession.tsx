@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getChallengeScenarioPool, getDailyScenarioPool } from "../data/dailyScenarioPool";
 import { getLearningVersionConfig } from "../data/learningVersions";
 import { stageAssessments } from "../data/mockAssessments";
+import { buildAdaptiveScenarioPool } from "../services/adaptiveScenarioService";
 import type { LookupEntry } from "../services/dictionaryService";
 import { gptService } from "../services/gptService";
 import { getDailyLearningPlan, type DailyLearningPlan } from "../services/learningPlanService";
@@ -18,7 +19,7 @@ import type {
   UnknownWordRecord
 } from "../types/learning";
 import { ClickableEnglish } from "./ClickableEnglish";
-import { WordLookupBox } from "./WordLookupBox";
+import { LearningCopilot } from "./LearningCopilot";
 
 interface DailyLearningSessionProps {
   progress: ProgressState;
@@ -95,8 +96,14 @@ export function DailyLearningSession({
   }, [activatedWords, answer, completed, diagnosis, feedback, onSessionStateChange, scenarioIndex]);
 
   const dailyScenarioPool = useMemo(
-    () => getDailyScenarioPool(progress.longTermProgress.currentDay, learningVersion),
-    [learningVersion, progress.longTermProgress.currentDay]
+    () =>
+      buildAdaptiveScenarioPool({
+        basePool: getDailyScenarioPool(progress.longTermProgress.currentDay, learningVersion),
+        learningVersion,
+        placement: placementResult,
+        progress
+      }),
+    [learningVersion, placementResult, progress]
   );
   const challengeScenarioPool = useMemo(
     () => getChallengeScenarioPool(progress.longTermProgress.currentDay, learningVersion),
@@ -201,7 +208,7 @@ export function DailyLearningSession({
   };
 
   if (report) {
-    return <DailySummary onStartNextDay={startNextDay} report={report} />;
+    return <DailySummary learningVersion={learningVersion} onStartNextDay={startNextDay} report={report} />;
   }
 
   return (
@@ -269,10 +276,14 @@ export function DailyLearningSession({
         />
       </div>
 
-      <WordLookupBox
+      <LearningCopilot
+        contextLabel={scenario.title}
+        currentPrompt={step.prompt}
         learningVersion={learningVersion}
         onLookup={handleLookupEntry}
+        recentReport={progress.checkInReports[0]}
         sourceSentence={scenario.languageInput}
+        unknownWords={progress.unknownWords.filter((word) => !word.mastered)}
       />
 
       <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -370,6 +381,7 @@ function buildReport(input: {
   assessmentPrompt: string;
 }): CheckInReport {
   const grammar = Array.from(new Set(input.completed.flatMap((item) => item.scenario.hiddenGrammarPoints))).slice(0, 8);
+  const grammarReviewExamples = buildGrammarReviewExamples(grammar, input.completed);
   const mistakes = input.completed.flatMap((item) => {
     const step = item.scenario.interactionSteps[0];
     const wrongChoice =
@@ -383,12 +395,14 @@ function buildReport(input: {
   const reviewQueue = Array.from(
     new Set([...Object.values(input.activatedWords), ...grammar.slice(0, 5), ...mistakes.slice(0, 5)])
   ).slice(0, 18);
+  const reviewWords = Object.values(input.activatedWords).slice(0, 8);
   return {
     id: crypto.randomUUID(),
     dayNumber: input.progress.longTermProgress.currentDay,
     completedTasks: input.completed.map((item) => item.scenario.title),
     newWordsLearned: Object.values(input.activatedWords),
     grammarPracticed: grammar,
+    grammarReviewExamples,
     writingOutput: input.completed.map((item) => item.answer).filter(Boolean).slice(-3),
     mainMistake: weak ? `Main issue: ${weak}` : "Main issue: answers mostly matched scene goals",
     mistakesEncountered: mistakes.length > 0 ? Array.from(new Set(mistakes)).slice(0, 12) : ["No major repeated mistake today"],
@@ -398,16 +412,73 @@ function buildReport(input: {
     scenarioCount: input.completed.length,
     assessmentPrompt: input.assessmentPrompt,
     milestoneAssessmentFocus: Array.from(new Set([...grammar, ...Object.values(input.activatedWords).slice(0, 5)])),
-    reviewQueue
+    reviewQueue,
+    nextDayReviewPlan: {
+      reviewWords,
+      grammarFocus: grammar.slice(0, 5),
+      firstReviewPrompt:
+        reviewWords.length > 0
+          ? `Before new scenes, use "${reviewWords[0]}" in one short sentence and reread one pattern from today.`
+          : "Before new scenes, reuse one pattern from today in a short sentence.",
+      newSceneFocus:
+        mistakes.length > 0
+          ? `New scenes should target: ${Array.from(new Set(mistakes)).slice(0, 2).join("; ")}.`
+          : input.dailyPlan.nextDayFocus
+    }
   };
 }
 
+function buildGrammarReviewExamples(
+  grammar: string[],
+  completed: Array<{ scenario: LearningScenario; answer: string; diagnosis?: LearningDiagnosis }>
+) {
+  return grammar.slice(0, 6).map((point) => {
+    const sourceScenario = completed.find((item) => item.scenario.hiddenGrammarPoints.includes(point))?.scenario;
+    return {
+      grammar: point,
+      sourceSentence: sourceScenario?.languageInput ?? "",
+      simpleExample: simpleExampleForGrammar(point, sourceScenario?.languageInput),
+      tryThis: tryThisForGrammar(point)
+    };
+  });
+}
+
+function simpleExampleForGrammar(point: string, fallback?: string) {
+  const normalized = point.toLowerCase();
+  if (normalized.includes("because")) return "I stayed after class because I wanted to ask one more question.";
+  if (normalized.includes("although")) return "Although the sentence was long, I found the main idea first.";
+  if (normalized.includes("who")) return "A friend who explains slowly can help me understand the task.";
+  if (normalized.includes("can i")) return "Can I borrow your notebook for a minute?";
+  if (normalized.includes("would like")) return "I would like some water because I am thirsty.";
+  if (normalized.includes("can't")) return "I can't find my English book.";
+  if (normalized.includes("going to")) return "I am going to review three words tonight.";
+  if (normalized.includes("should")) return "I should read the sentence carefully before I answer.";
+  if (normalized.includes("if")) return "If I do not know a word, I can ask the Copilot first.";
+  if (normalized.includes("when")) return "I feel more confident when I understand the scene.";
+  if (normalized.includes("will")) return "I will try the sentence again tomorrow.";
+  return fallback ?? "I can use this pattern in a real sentence.";
+}
+
+function tryThisForGrammar(point: string) {
+  const normalized = point.toLowerCase();
+  if (normalized.includes("because")) return "Write one reason for a real school problem with because.";
+  if (normalized.includes("although")) return "Write one sentence that admits a problem and still keeps the main idea.";
+  if (normalized.includes("who")) return "Write one sentence about a person, then add who to explain that person.";
+  if (normalized.includes("can")) return "Ask for help or permission in one polite sentence.";
+  if (normalized.includes("will") || normalized.includes("going to")) return "Say one real next action you will do after learning.";
+  return "Write one short sentence from your own life with this pattern.";
+}
+
 export function DailySummary({
+  learningVersion = "high_school",
   onFinishToday,
+  onReviewWords,
   onStartNextDay,
   report
 }: {
+  learningVersion?: LearningVersion;
   onFinishToday?: () => void;
+  onReviewWords?: () => void;
   onStartNextDay: () => void;
   report: CheckInReport;
 }) {
@@ -430,6 +501,35 @@ export function DailySummary({
         <ListBlock title="Final outputs" items={report.writingOutput} />
       </div>
 
+      <div className="mt-5 rounded-lg border border-leaf/25 bg-leaf/5 p-4">
+        <p className="text-sm font-bold text-ink">Actionable review plan</p>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          {report.nextDayReviewPlan?.firstReviewPrompt ?? "Start the next day by reusing one word and one pattern from today."}
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {(report.grammarReviewExamples ?? []).slice(0, 4).map((item) => (
+            <div className="rounded-md border border-line bg-white p-3" key={`${item.grammar}-${item.simpleExample}`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-leaf">{item.grammar}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-ink">{item.simpleExample}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{item.tryThis}</p>
+            </div>
+          ))}
+        </div>
+        {report.nextDayReviewPlan?.newSceneFocus && (
+          <p className="mt-3 rounded-md bg-white p-3 text-sm leading-6 text-muted">
+            New scenes after review: {report.nextDayReviewPlan.newSceneFocus}
+          </p>
+        )}
+      </div>
+
+      <LearningCopilot
+        contextLabel="Daily summary"
+        currentPrompt={report.nextDayFocus}
+        learningVersion={learningVersion}
+        recentReport={report}
+        sourceSentence={report.writingOutput[0] ?? report.completedTasks[0]}
+      />
+
       <div className="mt-5 rounded-lg border border-ocean/25 bg-ocean/5 p-4 text-sm leading-6 text-muted">
         <p><span className="font-semibold text-ink">Main issue:</span> {report.mainMistake}</p>
         <p className="mt-2"><span className="font-semibold text-ink">Tomorrow focus:</span> {report.nextDayFocus}</p>
@@ -448,6 +548,15 @@ export function DailySummary({
         >
           Continue Day {report.dayNumber + 1}
         </button>
+        {onReviewWords && report.newWordsLearned.length > 0 && (
+          <button
+            className="rounded-md bg-leaf px-5 py-3 text-sm font-bold text-white hover:bg-leaf/90"
+            onClick={onReviewWords}
+            type="button"
+          >
+            Review today's words
+          </button>
+        )}
         {onFinishToday && (
           <button
             className="rounded-md border border-line bg-white px-5 py-3 text-sm font-bold text-muted hover:border-ocean hover:text-ocean"
