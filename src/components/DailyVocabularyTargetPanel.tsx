@@ -4,6 +4,7 @@ import {
   type DailyVocabularyTarget
 } from "../services/dailyVocabularyService";
 import type { LearningScenario, LearningVersion } from "../types/learning";
+import { AudioButton } from "./AudioButton";
 
 interface DailyVocabularyTargetPanelProps {
   activatedWords: Record<string, string>;
@@ -66,9 +67,12 @@ export function DailyVocabularyTargetPanel({
               className={`rounded-md border p-3 ${activated ? "border-leaf/30 bg-leaf/5" : "border-line bg-paper"}`}
               key={`${target.normalized}-${index}`}
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-bold text-ink">{target.word}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-ink">{target.word}</p>
+                    <AudioButton label="Play word" text={target.word} />
+                  </div>
                   {target.phonetic && <p className="text-xs text-muted">/{target.phonetic}/</p>}
                 </div>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${activated ? "bg-leaf text-white" : "bg-white text-muted"}`}>
@@ -85,7 +89,10 @@ export function DailyVocabularyTargetPanel({
               </button>
               {isExpanded && (
                 <div className="mt-2 rounded-md bg-white p-3 text-xs leading-5 text-muted">
-                  <p className="font-semibold text-ink">{target.sourceTitle}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-ink">{target.sourceTitle}</p>
+                    <AudioButton label="Play sentence" text={target.sourceSentence || target.example} />
+                  </div>
                   <p className="mt-1">{target.sourceSentence}</p>
                   <p className="mt-1">{target.example}</p>
                 </div>

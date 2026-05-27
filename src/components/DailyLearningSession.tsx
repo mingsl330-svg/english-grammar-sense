@@ -19,6 +19,7 @@ import type {
   ScenarioSourceCategory,
   UnknownWordRecord
 } from "../types/learning";
+import { AudioButton } from "./AudioButton";
 import { ClickableEnglish } from "./ClickableEnglish";
 import { DailyVocabularyQuiz } from "./DailyVocabularyQuiz";
 import { DailyVocabularyTargetPanel } from "./DailyVocabularyTargetPanel";
@@ -285,9 +286,12 @@ export function DailyLearningSession({
       </div>
 
       <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <p className="text-xs font-bold uppercase tracking-wide text-ocean">
-          {versionConfig.inputHint}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-ocean">
+            {versionConfig.inputHint}
+          </p>
+          <AudioButton label="Play sentence" text={scenario.languageInput} />
+        </div>
         <ClickableEnglish
           className="mt-2 text-xl font-bold text-ink"
           learningVersion={learningVersion}

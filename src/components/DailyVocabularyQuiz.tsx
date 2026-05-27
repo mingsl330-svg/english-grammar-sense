@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DailyVocabularyTarget } from "../services/dailyVocabularyService";
+import { AudioButton } from "./AudioButton";
 
 interface DailyVocabularyQuizProps {
   targets: DailyVocabularyTarget[];
@@ -86,7 +87,11 @@ export function DailyVocabularyQuiz({ onPass, targets }: DailyVocabularyQuizProp
               <p className="text-xs font-bold uppercase tracking-wide text-leaf">Word {index + 1}</p>
               {question.mode === "meaning" ? (
                 <>
-                  <p className="mt-1 text-sm font-bold text-ink">Choose the meaning of "{question.target.word}".</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-ink">Choose the meaning of "{question.target.word}".</p>
+                    <AudioButton label="Play word" text={question.target.word} />
+                    <AudioButton label="Play sentence" text={question.target.sourceSentence || question.target.example} />
+                  </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {question.options?.map((option) => (
                       <button
@@ -104,7 +109,11 @@ export function DailyVocabularyQuiz({ onPass, targets }: DailyVocabularyQuizProp
                 </>
               ) : (
                 <>
-                  <p className="mt-1 text-sm font-bold text-ink">Write the English word for: {shortMeaning(question.target.meaning)}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-ink">Write the English word for: {shortMeaning(question.target.meaning)}</p>
+                    <AudioButton label="Play word" text={question.target.word} />
+                    <AudioButton label="Play sentence" text={question.target.sourceSentence || question.target.example} />
+                  </div>
                   <p className="mt-1 text-xs text-muted">Hint: {spellingHint(question.target.word)}</p>
                   <input
                     className="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-ocean"
