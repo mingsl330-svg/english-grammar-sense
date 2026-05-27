@@ -14,6 +14,57 @@ const textIncludesAny = (text: string, terms: string[]) => {
   return terms.some((term) => normalized.includes(term.toLowerCase()));
 };
 
+const hasCjk = (text: string) => /[\u4e00-\u9fff]/.test(text);
+
+const firstEnglishToken = (text: string) => text.match(/[A-Za-z][A-Za-z'-]{1,24}/)?.[0];
+
+const safeReviewWord = (words: string[], fallback: string) => {
+  for (const word of words) {
+    const token = firstEnglishToken(word);
+    if (token) return token;
+  }
+  return fallback;
+};
+
+const safeReviewWords = (words: string[], limit: number) =>
+  Array.from(new Set(words.map(firstEnglishToken).filter((word): word is string => Boolean(word)))).slice(0, limit);
+
+const safePatternLabel = (grammar: string) => {
+  const normalized = grammar.toLowerCase();
+  if (normalized.includes("not because")) return "not because ..., but because ...";
+  if (normalized.includes("because")) return "because for giving a reason";
+  if (normalized.includes("although")) return "although for balancing two ideas";
+  if (/\bas\b/.test(normalized)) return "as for showing a background change";
+  if (normalized.includes("even when")) return "even when for keeping action during difficulty";
+  if (normalized.includes("who")) return "who for adding detail about a person or group";
+  if (normalized.includes("which")) return "which for adding a result or extra detail";
+  if (normalized.includes("if")) return "if for conditions";
+  if (normalized.includes("when")) return "when for time or situation";
+  if (normalized.includes("before")) return "before doing for action order";
+  if (normalized.includes("need to")) return "need to for necessary action";
+  if (normalized.includes("had to")) return "had to for necessary past action";
+  if (normalized.includes("can")) return "can for ability or permission";
+  if (normalized.includes("will")) return "will for a next action";
+  if (normalized.includes("going to")) return "going to for a plan";
+  return hasCjk(grammar) ? "today's sentence pattern" : grammar;
+};
+
+const safeWeakPointLabel = (mistake?: string) => {
+  const clean = (mistake ?? "").replace(/\s+/g, " ").trim();
+  const normalized = clean.toLowerCase();
+  if (normalized.includes("chose")) return "choosing the sentence purpose";
+  if (normalized.includes("because-clause") || normalized.includes("because clause")) return "using a because-clause to explain motivation";
+  if (normalized.includes("vocabulary")) return "using a key word in context";
+  if (normalized.includes("sentence_structure")) return "finding the sentence structure";
+  if (normalized.includes("grammar")) return "using the pattern in a real situation";
+  if (normalized.includes("expression")) return "making the expression natural";
+  if (normalized.includes("transfer")) return "moving the expression into a new scene";
+  if (clean && !hasCjk(clean) && /^[A-Za-z0-9 ,.'":;!?()/-]+$/.test(clean) && clean.length <= 100) {
+    return clean.replace(/^main issue:\s*/i, "");
+  }
+  return "yesterday's main learning point";
+};
+
 const placementBridgeScenario = (placement: PlacementResult, version: LearningVersion): LearningScenario => {
   const isJunior = version === "primary_junior";
   const weak = placement.weakAreas[0] ?? "迁移表达";
@@ -97,12 +148,14 @@ const placementBridgeScenario = (placement: PlacementResult, version: LearningVe
 
 const reportReviewScenario = (report: CheckInReport, version: LearningVersion): LearningScenario => {
   const isJunior = version === "primary_junior";
-  const word = report.newWordsLearned[0] ?? "help";
-  const grammar = report.grammarPracticed[0] ?? (isJunior ? "because 原因" : "because / although");
+  const word = safeReviewWord(report.newWordsLearned, "help");
+  const rawGrammar = report.grammarPracticed[0] ?? (isJunior ? "because for giving a reason" : "because for giving a reason");
+  const grammar = safePatternLabel(rawGrammar);
   const mistake = report.mistakesEncountered?.[0] ?? report.mainMistake;
+  const weakPoint = safeWeakPointLabel(mistake);
   const languageInput = isJunior
     ? `Yesterday I met the word "${word}". Today I can use it in one new school sentence.`
-    : `Yesterday's weak point was ${mistake}. Today I will reuse "${word}" and the pattern ${grammar} in a new situation.`;
+    : `Yesterday I had trouble with ${weakPoint}. Today I will reuse "${word}" and the pattern ${grammar} in a new situation.`;
   const correctOption = "Review yesterday first, then enter a new scene";
 
   return {
@@ -117,8 +170,8 @@ const reportReviewScenario = (report: CheckInReport, version: LearningVersion): 
     taskGoal: "Reactivate one word, one pattern, and one weak point before new scenes.",
     languageInput,
     targetExpressions: [`use ${word}`, grammar],
-    hiddenGrammarPoints: Array.from(new Set([grammar, "复习后迁移"])),
-    vocabularyFocus: report.newWordsLearned.slice(0, isJunior ? 3 : 5),
+    hiddenGrammarPoints: Array.from(new Set([rawGrammar, "复习后迁移"])),
+    vocabularyFocus: safeReviewWords(report.newWordsLearned, isJunior ? 3 : 5),
     expressionGoal: "Turn yesterday's trace into today's first usable sentence.",
     transferContext: report.nextDayReviewPlan?.newSceneFocus ?? "Use yesterday's word in a new real-life sentence.",
     interactionSteps: [
