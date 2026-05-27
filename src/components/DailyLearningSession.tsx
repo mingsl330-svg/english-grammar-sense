@@ -225,7 +225,7 @@ export function DailyLearningSession({
   }
 
   return (
-    <section className="mx-auto max-w-5xl space-y-4">
+    <section className="mx-auto max-w-6xl space-y-4">
       <div className="rounded-lg border border-ocean/25 bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -265,120 +265,125 @@ export function DailyLearningSession({
         targetCount={dailyPlan.wordTarget}
       />
 
-      <div className="rounded-lg border border-ocean/25 bg-ocean/5 p-5 shadow-soft">
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-ocean">
-            {scenario.type}
-          </span>
-          {scenario.sourceCategory && (
-            <span className="rounded-full bg-ocean px-3 py-1 text-xs font-bold text-white">
-              {sourceLabelFor(scenario.sourceCategory, learningVersion)}
-            </span>
-          )}
-        </div>
-        <h2 className="mt-2 text-2xl font-bold text-ink">{scenario.title}</h2>
-        <p className="mt-3 text-sm leading-6 text-muted">{scenario.realWorldContext}</p>
-        {scenario.sourceNote && <p className="mt-2 text-xs font-semibold text-ocean">{scenario.sourceNote}</p>}
-        <p className="mt-2 text-sm leading-6 text-muted">
-          <span className="font-semibold text-ink">Expression goal:</span>{" "}
-          {scenario.expressionGoal}
-        </p>
-      </div>
-
-      <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-bold uppercase tracking-wide text-ocean">
-            {versionConfig.inputHint}
-          </p>
-          <AudioButton label="Play sentence" text={scenario.languageInput} />
-        </div>
-        <ClickableEnglish
-          className="mt-2 text-xl font-bold text-ink"
-          learningVersion={learningVersion}
-          onWordLookup={handleLookupEntry}
-          text={scenario.languageInput}
-        />
-      </div>
-
-      <LearningCopilot
-        contextLabel={scenario.title}
-        currentPrompt={step.prompt}
-        learningVersion={learningVersion}
-        onLookup={handleLookupEntry}
-        recentReport={progress.checkInReports[0]}
-        sourceSentence={scenario.languageInput}
-        unknownWords={progress.unknownWords.filter((word) => !word.mastered)}
-      />
-
-      <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
-        <p className="text-sm font-bold text-ocean">Scene Interaction</p>
-        <p className="mt-3 text-lg font-semibold leading-8 text-ink">{step.prompt}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {(step.optionTags ?? step.choices ?? step.successCriteria).map((option) => (
-            <button
-              className={`rounded-lg border p-4 text-left text-sm font-semibold leading-6 ${
-                answer === option ? "border-ocean bg-ocean text-white" : "border-line bg-paper text-ink hover:border-ocean"
-              }`}
-              key={option}
-              onClick={() => setAnswer(option)}
-              type="button"
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-        {!feedback ? (
-          <button
-            className="mt-3 rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={answer.trim().length === 0 || isChecking}
-            onClick={() => void submit()}
-            type="button"
-          >
-            {isChecking ? "Checking" : "Submit"}
-          </button>
-        ) : (
-          <div className="mt-4 rounded-lg border border-line bg-paper p-4">
-            <p className="text-sm font-bold text-ink">Correction</p>
-            {feedback.aiProvider === "minimax" ? (
-              <>
-                <FeedbackLine title="Correct idea" value={feedback.expectedAnswer ?? feedback.reason} />
-                <FeedbackLine title="Sentence pattern" value={feedback.correctionFocus ?? feedback.reason} />
-                <FeedbackLine tone="error" title="Your answer missed" value={feedback.studentGap ?? feedback.reason} />
-                <FeedbackLine title="MiniMax feedback" value={feedback.relevanceJudgement ?? feedback.reason} />
-              </>
-            ) : (
-              <>
-                {feedback.aiProvider && (
-                  <p className="mt-2 rounded-md bg-amber/10 px-3 py-2 text-xs font-bold text-amber">
-                    AI source: Local fallback
-                    {feedback.aiStatus ? ` · ${feedback.aiStatus}` : ""}
-                  </p>
-                )}
-                <FeedbackLine title="Correct option" value={step.correctOption ?? feedback.expectedAnswer ?? feedback.reason} />
-                <FeedbackLine
-                  title="Why it is correct"
-                  value={
-                    step.correctOption
-                      ? step.optionExplanations?.[step.correctOption] ?? "It matches the scene goal."
-                      : feedback.correctionFocus ?? feedback.reason
-                  }
-                />
-                <FeedbackLine
-                  tone="error"
-                  title="Why your choice is not enough"
-                  value={step.optionExplanations?.[answer] ?? feedback.studentGap ?? feedback.reason}
-                />
-              </>
-            )}
-            <button
-              className="mt-4 rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white hover:bg-ocean/90"
-              onClick={nextScenario}
-              type="button"
-            >
-              {scenarioCount + 1 >= dailyPlan.sentenceTarget ? "Generate summary" : "Next scene"}
-            </button>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-ocean/25 bg-ocean/5 p-5 shadow-soft">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-ocean">
+                {scenario.type}
+              </span>
+              {scenario.sourceCategory && (
+                <span className="rounded-full bg-ocean px-3 py-1 text-xs font-bold text-white">
+                  {sourceLabelFor(scenario.sourceCategory, learningVersion)}
+                </span>
+              )}
+            </div>
+            <h2 className="mt-2 text-2xl font-bold text-ink">{scenario.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-muted">{scenario.realWorldContext}</p>
+            {scenario.sourceNote && <p className="mt-2 text-xs font-semibold text-ocean">{scenario.sourceNote}</p>}
+            <p className="mt-2 text-sm leading-6 text-muted">
+              <span className="font-semibold text-ink">Expression goal:</span>{" "}
+              {scenario.expressionGoal}
+            </p>
           </div>
-        )}
+
+          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-ocean">
+                {versionConfig.inputHint}
+              </p>
+              <AudioButton label="Play sentence" text={scenario.languageInput} />
+            </div>
+            <ClickableEnglish
+              className="mt-2 text-xl font-bold text-ink"
+              learningVersion={learningVersion}
+              onWordLookup={handleLookupEntry}
+              text={scenario.languageInput}
+            />
+          </div>
+
+          <div className="rounded-lg border border-line bg-white p-5 shadow-soft">
+            <p className="text-sm font-bold text-ocean">Scene Interaction</p>
+            <p className="mt-3 text-lg font-semibold leading-8 text-ink">{step.prompt}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {(step.optionTags ?? step.choices ?? step.successCriteria).map((option) => (
+                <button
+                  className={`rounded-lg border p-4 text-left text-sm font-semibold leading-6 ${
+                    answer === option ? "border-ocean bg-ocean text-white" : "border-line bg-paper text-ink hover:border-ocean"
+                  }`}
+                  key={option}
+                  onClick={() => setAnswer(option)}
+                  type="button"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {!feedback ? (
+              <button
+                className="mt-3 rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={answer.trim().length === 0 || isChecking}
+                onClick={() => void submit()}
+                type="button"
+              >
+                {isChecking ? "Checking" : "Submit"}
+              </button>
+            ) : (
+              <div className="mt-4 rounded-lg border border-line bg-paper p-4">
+                <p className="text-sm font-bold text-ink">Correction</p>
+                {feedback.aiProvider === "minimax" ? (
+                  <>
+                    <FeedbackLine title="Correct idea" value={feedback.expectedAnswer ?? feedback.reason} />
+                    <FeedbackLine title="Sentence pattern" value={feedback.correctionFocus ?? feedback.reason} />
+                    <FeedbackLine tone="error" title="Your answer missed" value={feedback.studentGap ?? feedback.reason} />
+                    <FeedbackLine title="MiniMax feedback" value={feedback.relevanceJudgement ?? feedback.reason} />
+                  </>
+                ) : (
+                  <>
+                    {feedback.aiProvider && (
+                      <p className="mt-2 rounded-md bg-amber/10 px-3 py-2 text-xs font-bold text-amber">
+                        AI source: Local fallback
+                        {feedback.aiStatus ? ` · ${feedback.aiStatus}` : ""}
+                      </p>
+                    )}
+                    <FeedbackLine title="Correct option" value={step.correctOption ?? feedback.expectedAnswer ?? feedback.reason} />
+                    <FeedbackLine
+                      title="Why it is correct"
+                      value={
+                        step.correctOption
+                          ? step.optionExplanations?.[step.correctOption] ?? "It matches the scene goal."
+                          : feedback.correctionFocus ?? feedback.reason
+                      }
+                    />
+                    <FeedbackLine
+                      tone="error"
+                      title="Why your choice is not enough"
+                      value={step.optionExplanations?.[answer] ?? feedback.studentGap ?? feedback.reason}
+                    />
+                  </>
+                )}
+                <button
+                  className="mt-4 rounded-md bg-ocean px-5 py-3 text-sm font-bold text-white hover:bg-ocean/90"
+                  onClick={nextScenario}
+                  type="button"
+                >
+                  {scenarioCount + 1 >= dailyPlan.sentenceTarget ? "Generate summary" : "Next scene"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <LearningCopilot
+          className="lg:sticky lg:top-4"
+          contextLabel={scenario.title}
+          currentPrompt={step.prompt}
+          learningVersion={learningVersion}
+          onLookup={handleLookupEntry}
+          recentReport={progress.checkInReports[0]}
+          sourceSentence={scenario.languageInput}
+          unknownWords={progress.unknownWords.filter((word) => !word.mastered)}
+        />
       </div>
     </section>
   );

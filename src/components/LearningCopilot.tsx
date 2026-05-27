@@ -5,6 +5,7 @@ import type { CheckInReport, LearningVersion, UnknownWordRecord } from "../types
 
 interface LearningCopilotProps {
   learningVersion: LearningVersion;
+  className?: string;
   sourceSentence?: string;
   currentPrompt?: string;
   contextLabel?: string;
@@ -70,6 +71,7 @@ const reviewHelp = (report?: CheckInReport, unknownWords?: UnknownWordRecord[]) 
 };
 
 export function LearningCopilot({
+  className = "",
   contextLabel = "Current learning task",
   currentPrompt,
   learningVersion,
@@ -156,7 +158,7 @@ export function LearningCopilot({
   };
 
   return (
-    <aside className="rounded-lg border border-ocean/25 bg-white p-4 shadow-soft">
+    <aside className={`rounded-lg border border-ocean/25 bg-paper p-4 shadow-soft ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-ocean">Learning Copilot</p>
@@ -170,7 +172,7 @@ export function LearningCopilot({
       <div className="mt-3 flex flex-wrap gap-2">
         {quickActions.map((action) => (
           <button
-            className="rounded-md border border-line bg-paper px-3 py-2 text-left text-xs font-semibold text-muted hover:border-ocean hover:text-ocean"
+            className="rounded-md border border-line bg-white px-3 py-2 text-left text-xs font-semibold text-muted hover:border-ocean hover:text-ocean"
             key={action}
             onClick={() => void reply(action)}
             type="button"
@@ -184,7 +186,7 @@ export function LearningCopilot({
         {messages.map((message) => (
           <div
             className={`rounded-md p-3 text-sm leading-6 ${
-              message.role === "copilot" ? "bg-ocean/5 text-muted" : "bg-paper text-ink"
+              message.role === "copilot" ? "bg-white text-muted" : "bg-ocean/5 text-ink"
             }`}
             key={message.id}
           >
