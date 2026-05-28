@@ -39,6 +39,7 @@ interface DailyLearningSessionProps {
 }
 
 export interface DailySessionState {
+  dayNumber: number;
   scenarioIndex: number;
   answer: string;
   feedback?: FeedbackResult;
@@ -72,14 +73,16 @@ export function DailyLearningSession({
   placementResult,
   progress
 }: DailyLearningSessionProps) {
-  const [scenarioIndex, setScenarioIndex] = useState(initialState?.scenarioIndex ?? 0);
-  const [answer, setAnswer] = useState(initialState?.answer ?? "");
-  const [feedback, setFeedback] = useState<FeedbackResult | undefined>(initialState?.feedback);
-  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | undefined>(initialState?.diagnosis);
+  const activeDayNumber = Math.max(1, progress.longTermProgress.currentDay);
+  const restoredState = initialState?.dayNumber === activeDayNumber ? initialState : undefined;
+  const [scenarioIndex, setScenarioIndex] = useState(restoredState?.scenarioIndex ?? 0);
+  const [answer, setAnswer] = useState(restoredState?.answer ?? "");
+  const [feedback, setFeedback] = useState<FeedbackResult | undefined>(restoredState?.feedback);
+  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | undefined>(restoredState?.diagnosis);
   const [isChecking, setIsChecking] = useState(false);
-  const [activatedWords, setActivatedWords] = useState<Record<string, string>>(initialState?.activatedWords ?? {});
+  const [activatedWords, setActivatedWords] = useState<Record<string, string>>(restoredState?.activatedWords ?? {});
   const [completed, setCompleted] = useState<Array<{ scenario: LearningScenario; answer: string; diagnosis?: LearningDiagnosis }>>(
-    initialState?.completed ?? []
+    restoredState?.completed ?? []
   );
   const [dailyVocabularyTargets, setDailyVocabularyTargets] = useState<DailyVocabularyTarget[]>([]);
   const [report, setReport] = useState<CheckInReport>();
@@ -91,6 +94,7 @@ export function DailyLearningSession({
 
   useEffect(() => {
     onSessionStateChange?.({
+      dayNumber: activeDayNumber,
       scenarioIndex,
       answer,
       feedback,
@@ -98,7 +102,7 @@ export function DailyLearningSession({
       activatedWords,
       completed
     });
-  }, [activatedWords, answer, completed, diagnosis, feedback, onSessionStateChange, scenarioIndex]);
+  }, [activatedWords, activeDayNumber, answer, completed, diagnosis, feedback, onSessionStateChange, scenarioIndex]);
 
   const dailyScenarioPool = useMemo(
     () =>
@@ -151,6 +155,7 @@ export function DailyLearningSession({
     const nextActivatedWords = { ...activatedWords, [normalized]: entry.word };
     setActivatedWords(nextActivatedWords);
     onSessionStateChange?.({
+      dayNumber: activeDayNumber,
       scenarioIndex,
       answer,
       feedback,

@@ -11,30 +11,67 @@ export interface DailyVocabularyTarget {
   sourceTitle: string;
 }
 
-const normalize = (word: string) => word.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "");
+const normalize = (word: string) =>
+  word
+    .toLowerCase()
+    .replace(/^[^a-z]+|[^a-z]+$/g, "")
+    .replace(/'s$/, "");
 
 const stopWords = new Set([
   "a",
   "an",
   "and",
   "are",
+  "as",
+  "at",
+  "by",
   "can",
+  "do",
+  "does",
+  "for",
+  "how",
   "i",
+  "if",
+  "in",
   "is",
   "it",
   "my",
   "of",
+  "on",
+  "one",
+  "or",
+  "sb",
+  "some",
+  "someone",
+  "something",
+  "sth",
+  "that",
   "the",
+  "this",
+  "those",
+  "these",
   "to",
+  "what",
+  "when",
+  "where",
+  "why",
+  "with",
   "you",
   "your"
 ]);
 
+const isReviewBridgeScenario = (scenario: LearningScenario) =>
+  scenario.id.includes("review-bridge") || scenario.title.toLowerCase().includes("yesterday comes back");
+
 export const collectDailyVocabularySeeds = (scenarios: LearningScenario[], limit: number) => {
   const seeds: Array<{ word: string; sourceSentence: string; sourceTitle: string }> = [];
   const seen = new Set<string>();
+  const orderedScenarios = [
+    ...scenarios.filter((scenario) => !isReviewBridgeScenario(scenario)),
+    ...scenarios.filter(isReviewBridgeScenario)
+  ];
 
-  for (const scenario of scenarios) {
+  for (const scenario of orderedScenarios) {
     const words = [
       ...scenario.vocabularyFocus,
       ...scenario.targetExpressions.flatMap((expression) => expression.match(/[A-Za-z']+/g) ?? [])
@@ -44,7 +81,7 @@ export const collectDailyVocabularySeeds = (scenarios: LearningScenario[], limit
       if (!normalized || normalized.length < 3 || stopWords.has(normalized) || seen.has(normalized)) continue;
       seen.add(normalized);
       seeds.push({
-        word,
+        word: normalized,
         sourceSentence: scenario.languageInput,
         sourceTitle: scenario.title
       });

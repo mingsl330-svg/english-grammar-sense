@@ -446,6 +446,12 @@ export const getJuniorPlanForDay = (dayNumber: number) => {
 };
 
 const juniorSentenceExtensions = {
+  foundation: [
+    "I can use this sentence with a classmate.",
+    "This sentence helps me say one real need.",
+    "I can change one word and use it again.",
+    "This idea is useful in a new school moment."
+  ],
   buildUp: [
     "I can use it at school.",
     "This is useful in class.",
@@ -473,12 +479,33 @@ const juniorSentenceExtensions = {
 };
 
 const adaptJuniorLanguageInput = (baseSentence: string, dayNumber: number, index: number) => {
-  if (dayNumber <= 30) return baseSentence;
   const pick = (items: string[]) => items[(dayNumber + index) % items.length];
+  if (dayNumber === 1) return baseSentence;
+  if (dayNumber <= 30) return `${baseSentence} ${pick(juniorSentenceExtensions.foundation)}`;
   if (dayNumber <= 60) return `${baseSentence} ${pick(juniorSentenceExtensions.buildUp)}`;
   if (dayNumber <= 120) return `${baseSentence} ${pick(juniorSentenceExtensions.connection)}`;
   if (dayNumber <= 180) return `${baseSentence} ${pick(juniorSentenceExtensions.story)}`;
   return `${baseSentence} ${pick(juniorSentenceExtensions.readiness)}`;
+};
+
+const juniorExtensionVocabulary = (dayNumber: number, index: number) => {
+  if (dayNumber === 1) return [];
+  const pick = (items: string[]) => items[(dayNumber + index) % items.length];
+  const extension =
+    dayNumber <= 30
+      ? pick(juniorSentenceExtensions.foundation)
+      : dayNumber <= 60
+        ? pick(juniorSentenceExtensions.buildUp)
+        : dayNumber <= 120
+          ? pick(juniorSentenceExtensions.connection)
+          : dayNumber <= 180
+            ? pick(juniorSentenceExtensions.story)
+            : pick(juniorSentenceExtensions.readiness);
+  return (extension.toLowerCase().match(/[a-z']+/g) ?? []).filter(
+    (word) =>
+      word.length > 3 &&
+      !new Set(["this", "that", "with", "sentence", "school", "class", "again"]).has(word)
+  );
 };
 
 const extraGrammarForDay = (dayNumber: number) => {
@@ -491,7 +518,7 @@ const extraGrammarForDay = (dayNumber: number) => {
 
 export const getJuniorDailyScenarioPool = (dayNumber: number): LearningScenario[] => {
   const plan = getJuniorPlanForDay(dayNumber);
-  const rotation = (dayNumber - 1) % juniorDailyScenarioPool.length;
+  const rotation = ((dayNumber - 1) * 3) % juniorDailyScenarioPool.length;
   const rotated = [
     ...juniorDailyScenarioPool.slice(rotation),
     ...juniorDailyScenarioPool.slice(0, rotation)
@@ -502,6 +529,7 @@ export const getJuniorDailyScenarioPool = (dayNumber: number): LearningScenario[
     id: `${scenario.id}-day-${plan.day}`,
     title: `Day ${plan.day} · ${scenario.title}`,
     languageInput: adaptJuniorLanguageInput(scenario.languageInput, plan.day, index),
+    vocabularyFocus: Array.from(new Set([...juniorExtensionVocabulary(plan.day, index), ...scenario.vocabularyFocus])),
     sourceNote: `${scenario.sourceNote} · ${plan.difficultyLabel}: ${plan.difficultyDetail}`,
     taskGoal: `${scenario.taskGoal} · ${plan.moduleTitle}`,
     hiddenGrammarPoints: [...scenario.hiddenGrammarPoints, ...extraGrammarForDay(plan.day)],

@@ -66,6 +66,19 @@ Daily vocabulary target rule:
 - Early checks should be light: English-to-Chinese recognition and Chinese-to-English spelling with hints.
 - The summary should make the achievement visible so the learner knows exactly what was learned today.
 
+Daily scenario and word rotation rule:
+
+- Daily content must be generated interactively. The app should never pre-generate a full long-term lesson list.
+- The first scene after Day 1 should be a review bridge from yesterday, but the rest of the day must follow the day-based scenario rotation.
+- Yesterday's words, grammar, and mistakes may shape the review bridge only. They must not reorder the whole daily scenario pool back toward old scenes.
+- Target words should be extracted from the current day's planned scenes after rotation, so Day 3 and later continue to introduce new source sentences and new word goals.
+- The scenario rotation step should match the early daily load: 3 scenes for junior and 5 scenes for high school, instead of moving only one slot per day.
+- Review-bridge words are review traces, not the primary source for today's new word target. They can be fallback seeds only after current-day new scenes are exhausted.
+- Saved in-progress session state must be tied to the current day. A Day 2 session state should not be reused after progress advances to Day 3.
+- High-school new content is selected by a dynamic track: sentence family plus topic categories. The topic categories must keep using the agreed major directions: current issues, daily life, Chinese traditional culture, classic story/literature, inspirational/team scenes, and exam-transfer writing.
+- Real-time/current-information content should enter through a replaceable provider. The local templates are only a safe fallback when no backend/news/MiniMax provider is available.
+- The daily report is the contract for tomorrow: it supplies review words, weak points, grammar traces, and the first review bridge, while the new scenes still come from that day's dynamic topic and sentence-family track.
+
 ## Local Learner Access
 
 Local learner profiles are separate learning accounts on the same browser.

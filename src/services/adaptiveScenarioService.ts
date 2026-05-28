@@ -9,11 +9,6 @@ const uniqueById = (scenarios: LearningScenario[]) => {
   });
 };
 
-const textIncludesAny = (text: string, terms: string[]) => {
-  const normalized = text.toLowerCase();
-  return terms.some((term) => normalized.includes(term.toLowerCase()));
-};
-
 const hasCjk = (text: string) => /[\u4e00-\u9fff]/.test(text);
 
 const firstEnglishToken = (text: string) => text.match(/[A-Za-z][A-Za-z'-]{1,24}/)?.[0];
@@ -204,41 +199,6 @@ const reportReviewScenario = (report: CheckInReport, version: LearningVersion): 
   };
 };
 
-const scoreScenario = (scenario: LearningScenario, placement?: PlacementResult, previousReport?: CheckInReport) => {
-  let score = 0;
-  const haystack = [
-    scenario.title,
-    scenario.realWorldContext,
-    scenario.taskGoal,
-    scenario.languageInput,
-    scenario.expressionGoal,
-    scenario.transferContext,
-    ...scenario.hiddenGrammarPoints,
-    ...scenario.vocabularyFocus,
-    ...scenario.targetExpressions
-  ].join(" ");
-
-  if (placement?.weakAreas.some((weak) => weak.includes("场景") && textIncludesAny(haystack, ["meaning", "purpose", "wants", "real intention", "choose"]))) {
-    score += 8;
-  }
-  if (placement?.weakAreas.some((weak) => weak.includes("表达") && textIncludesAny(haystack, ["natural", "polite", "because", "really", "expression"]))) {
-    score += 8;
-  }
-  if (placement?.weakAreas.some((weak) => weak.includes("迁移") && textIncludesAny(haystack, ["transfer", "new situation", "own", "use"]))) {
-    score += 8;
-  }
-
-  if (previousReport) {
-    if (previousReport.grammarPracticed.some((grammar) => textIncludesAny(haystack, [grammar.split(" ")[0], grammar]))) score += 10;
-    if (previousReport.newWordsLearned.some((word) => textIncludesAny(haystack, [word]))) score += 6;
-    if (previousReport.mistakesEncountered?.some((mistake) => textIncludesAny(haystack, mistake.split(/\s+/).filter((item) => item.length > 4).slice(0, 4)))) {
-      score += 4;
-    }
-  }
-
-  return score;
-};
-
 export const buildAdaptiveScenarioPool = ({
   basePool,
   learningVersion,
@@ -252,18 +212,9 @@ export const buildAdaptiveScenarioPool = ({
 }) => {
   const dayNumber = progress.longTermProgress.currentDay;
   const previousReport = progress.checkInReports.find((report) => report.dayNumber === dayNumber - 1);
-  const scored = basePool
-    .map((scenario, index) => ({
-      index,
-      scenario,
-      score: scoreScenario(scenario, placement, previousReport)
-    }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map((item) => item.scenario);
-
   const bridges: LearningScenario[] = [];
   if (dayNumber === 1 && placement) bridges.push(placementBridgeScenario(placement, learningVersion));
   if (dayNumber > 1 && previousReport) bridges.push(reportReviewScenario(previousReport, learningVersion));
 
-  return uniqueById([...bridges, ...scored]);
+  return uniqueById([...bridges, ...basePool]);
 };

@@ -1,7 +1,7 @@
 import { buildHotTopicScenarios } from "./hotTopicScenarioProvider";
 import { getJuniorChallengeScenarioPool, getJuniorDailyScenarioPool } from "./juniorScenarioPool";
 import { learningScenarios } from "./mockScenarios";
-import type { LearningScenario, LearningVersion } from "../types/learning";
+import type { LearningScenario, LearningVersion, ScenarioSourceCategory } from "../types/learning";
 
 type InteractionStep = LearningScenario["interactionSteps"][number];
 
@@ -461,7 +461,78 @@ const highSchoolPlanBands = [
   }
 ];
 
+const highSchoolTopicTracks: Array<{
+  label: string;
+  categories: ScenarioSourceCategory[];
+}> = [
+  {
+    label: "current issues + daily communication + exam transfer",
+    categories: ["recent_hot_topic", "daily_life", "gaokao_focus"]
+  },
+  {
+    label: "school life + culture + story reading",
+    categories: ["daily_life", "chinese_traditional_culture", "classic_english_literature"]
+  },
+  {
+    label: "public topics + speeches + teamwork scenes",
+    categories: ["recent_hot_topic", "inspirational_speech", "classic_movie_scene"]
+  },
+  {
+    label: "application writing + culture + current information",
+    categories: ["gaokao_focus", "chinese_traditional_culture", "recent_hot_topic"]
+  }
+];
+
+const highSchoolSentenceFamilies = [
+  {
+    label: "reason and motivation",
+    signals: ["because", "reason", "motivation", "purpose", "so that"]
+  },
+  {
+    label: "contrast and balance",
+    signals: ["although", "while", "but", "balance", "even when"]
+  },
+  {
+    label: "detail and description",
+    signals: ["who", "which", "detail", "relative", "watching"]
+  },
+  {
+    label: "condition and result",
+    signals: ["if", "result", "lead", "enable", "allow", "make progress"]
+  },
+  {
+    label: "time, background, and action order",
+    signals: ["when", "as", "before", "during", "having"]
+  }
+];
+
+const textMatchesAny = (scenario: LearningScenario, signals: string[]) => {
+  const haystack = [
+    scenario.title,
+    scenario.realWorldContext,
+    scenario.taskGoal,
+    scenario.languageInput,
+    scenario.expressionGoal,
+    scenario.transferContext,
+    ...scenario.hiddenGrammarPoints,
+    ...scenario.targetExpressions,
+    ...scenario.vocabularyFocus
+  ].join(" ").toLowerCase();
+  return signals.some((signal) => haystack.includes(signal.toLowerCase()));
+};
+
+const dynamicTrackForDay = (dayNumber: number) => ({
+  sentenceFamily: highSchoolSentenceFamilies[(dayNumber - 1) % highSchoolSentenceFamilies.length],
+  topicTrack: highSchoolTopicTracks[Math.floor((dayNumber - 1) / 2) % highSchoolTopicTracks.length]
+});
+
 const highSchoolSentenceExtensions = {
+  foundation: [
+    "Today, the same pattern appears in a fresh school scene with a clearer purpose.",
+    "This version adds a new detail so the learner can notice how meaning changes.",
+    "The sentence now connects the speaker's action with a practical classroom result.",
+    "A different situation helps students reuse the structure without copying yesterday's wording."
+  ],
   expansion: [
     "This detail makes the speaker's purpose clearer in a real conversation.",
     "The sentence also shows how a small choice can lead to a practical result.",
@@ -487,11 +558,14 @@ const highSchoolSentenceExtensions = {
 const getHighSchoolPlanForDay = (dayNumber: number) => {
   const safeDay = Math.max(1, Math.min(240, dayNumber));
   const band = highSchoolPlanBands.find((item) => safeDay <= item.untilDay) ?? highSchoolPlanBands[0];
+  const dynamicTrack = dynamicTrackForDay(safeDay);
   return {
     day: safeDay,
     label: band.label,
     detail: band.detail,
     grammar: band.grammar,
+    sentenceFamily: dynamicTrack.sentenceFamily,
+    topicTrack: dynamicTrack.topicTrack,
     milestone:
       safeDay === 7
         ? "7-day check: sentence purpose and activated vocabulary"
@@ -511,30 +585,74 @@ const getHighSchoolPlanForDay = (dayNumber: number) => {
 
 const pickHighSchoolExtension = (dayNumber: number, index: number) => {
   const pick = (items: string[]) => items[(dayNumber + index) % items.length];
-  if (dayNumber <= 30) return "";
+  if (dayNumber === 1) return "";
+  if (dayNumber <= 30) return pick(highSchoolSentenceExtensions.foundation);
   if (dayNumber <= 60) return pick(highSchoolSentenceExtensions.expansion);
   if (dayNumber <= 120) return pick(highSchoolSentenceExtensions.longSentence);
   if (dayNumber <= 180) return pick(highSchoolSentenceExtensions.paragraphLogic);
   return pick(highSchoolSentenceExtensions.writingTransfer);
 };
 
+const extensionVocabulary = (extension: string) =>
+  (extension.toLowerCase().match(/[a-z']+/g) ?? []).filter(
+    (word) =>
+      word.length > 4 &&
+      !new Set([
+        "today",
+        "same",
+        "with",
+        "without",
+        "this",
+        "that",
+        "students",
+        "learner",
+        "sentence",
+        "structure",
+        "pattern",
+        "version"
+      ]).has(word)
+  );
+
 const adaptHighSchoolScenario = (scenario: LearningScenario, dayNumber: number, index: number): LearningScenario => {
   const plan = getHighSchoolPlanForDay(dayNumber);
   const extension = pickHighSchoolExtension(plan.day, index);
+  const extensionWords = extensionVocabulary(extension);
   return {
     ...scenario,
     id: `${scenario.id}-day-${plan.day}`,
-    sourceNote: `${scenario.sourceNote ?? "High-school 240-day path"} · ${plan.milestone} · ${plan.detail}`,
+    sourceNote: `${scenario.sourceNote ?? "High-school 240-day path"} · ${plan.milestone} · ${plan.detail} · Dynamic topics: ${plan.topicTrack.label}`,
     languageInput: extension ? `${scenario.languageInput} ${extension}` : scenario.languageInput,
-    hiddenGrammarPoints: Array.from(new Set([...scenario.hiddenGrammarPoints, ...plan.grammar])),
-    expressionGoal: `${scenario.expressionGoal} Today's high-school focus: ${plan.label}.`,
+    vocabularyFocus: Array.from(new Set([...extensionWords, ...scenario.vocabularyFocus])),
+    hiddenGrammarPoints: Array.from(new Set([...scenario.hiddenGrammarPoints, ...plan.grammar, plan.sentenceFamily.label])),
+    expressionGoal: `${scenario.expressionGoal} Today's high-school focus: ${plan.label}; sentence family: ${plan.sentenceFamily.label}.`,
     transferContext: `${scenario.transferContext} 240-day focus: ${plan.detail}.`,
     interactionSteps: scenario.interactionSteps.map((step) => ({
       ...step,
       id: `${step.id}-hs-day-${plan.day}-${index}`,
-      prompt: `${step.prompt} Focus: ${plan.label}.`
+      prompt: `${step.prompt} Focus: ${plan.sentenceFamily.label}.`
     }))
   };
+};
+
+const orderByDynamicTrack = (scenarios: LearningScenario[], dayNumber: number) => {
+  const { sentenceFamily, topicTrack } = dynamicTrackForDay(Math.max(1, dayNumber));
+  const rotation = ((dayNumber - 1) * 5) % scenarios.length;
+  const rotated = [...scenarios.slice(rotation), ...scenarios.slice(0, rotation)];
+  return rotated
+    .map((scenario, index) => {
+      const category = scenario.sourceCategory ?? "daily_life";
+      const categoryIndex = topicTrack.categories.indexOf(category);
+      const categoryScore = categoryIndex >= 0 ? 80 - categoryIndex * 10 : 0;
+      const sentenceScore = textMatchesAny(scenario, sentenceFamily.signals) ? 35 : 0;
+      const coverageScore = Math.max(0, 24 - index);
+      const tieBreaker = hash(`${dayNumber}-${sentenceFamily.label}-${scenario.id}`) % 7;
+      return {
+        scenario,
+        score: categoryScore + sentenceScore + coverageScore + tieBreaker
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.scenario);
 };
 
 const getHighSchoolDailyScenarioPool = (dayNumber: number): LearningScenario[] => {
@@ -542,9 +660,9 @@ const getHighSchoolDailyScenarioPool = (dayNumber: number): LearningScenario[] =
     ...buildHotTopicScenarios(dayNumber),
     ...staticDailyScenarioPool.filter((scenario) => scenario.sourceCategory !== "recent_hot_topic")
   ];
-  const rotation = (dayNumber - 1) % basePool.length;
-  const rotated = [...basePool.slice(rotation), ...basePool.slice(0, rotation)];
-  return rotated.map((scenario, index) => adaptHighSchoolScenario(scenario, dayNumber, index));
+  return orderByDynamicTrack(basePool, dayNumber).map((scenario, index) =>
+    adaptHighSchoolScenario(scenario, dayNumber, index)
+  );
 };
 
 export const getDailyScenarioPool = (dayNumber: number, version: LearningVersion = "high_school"): LearningScenario[] =>
