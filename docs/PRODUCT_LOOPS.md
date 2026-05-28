@@ -79,6 +79,60 @@ Daily scenario and word rotation rule:
 - Real-time/current-information content should enter through a replaceable provider. The local templates are only a safe fallback when no backend/news/MiniMax provider is available.
 - The daily report is the contract for tomorrow: it supplies review words, weak points, grammar traces, and the first review bridge, while the new scenes still come from that day's dynamic topic and sentence-family track.
 
+## Dual Learning Spaces
+
+The product has two front-end learning spaces that share the same learning capability layer: vocabulary, sentence building, reading, guided writing, independent writing, grammar points, topic clusters, AI feedback, student profile, and difficulty adjustment.
+
+Primary-junior space:
+
+- Goal: build English sense before exam pressure.
+- Tone: warm, low-pressure, life-oriented.
+- Surface modules: 今日小词, 和我一起读, 我会说一句, 英文小日记, 英语树洞, 现实世界里的英语.
+- Avoid frequent scores, test-paper language, wrong-question framing, and exam countdown.
+- The AI role is a gentle language companion. Corrections should be light and focused.
+- Daily tasks should feel like noticing language in life, not doing a worksheet.
+
+High-school-to-university space:
+
+- Goal: use Gaokao-style examiner logic as upper-layer guidance while preserving natural language growth.
+- Tone: systematic, clear, goal-oriented, but not oppressive.
+- Surface modules: 月度考向, 主题词汇, 高考句型, 语篇阅读, 出题组讲评, 写作升级, 能力画像, 模拟测试入口.
+- The default homepage starts from this month's topic and today's expression task.
+- Mock exam simulation is a separate entry and must not become the daily default experience.
+
+Global learning promise:
+
+- 每天发现一点英文.
+- 每天读懂一点世界.
+- 每天说出一点自己.
+- 每天提升一点表达.
+- 在不知不觉中走向考试能力和真实表达能力.
+
+## Gaokao Examiner System
+
+The Gaokao layer must sit above the original path: Word Sense -> Sentence Builder -> Reading Examiner -> Guided Writing -> Independent Writing.
+
+Core data objects:
+
+- ExamTrendEngine: creates a monthly focus from topic clusters, grammar points, question types, writing directions, and learner weakness signals.
+- TopicClusterDB: covers 中国文化, 西方文化, 科技时事, 哲学思辨, 校园生活, 社会责任, 生态环保, 青年成长.
+- GrammarPointDB: grammar entries link to sentence use, reading use, writing use, and topic ids.
+- WordBank: words link to topics, collocations, exam contexts, writing transfer, and grammar ids.
+- StudentAbilityProfile: tracks 词汇语境能力, 语法识别能力, 语法输出能力, 长难句理解能力, 阅读推理能力, 语篇结构能力, 文化表达能力, 科技主题理解能力, 观点表达能力, 写作组织能力, 语言自然度, 高考题型适应度.
+
+AI examiner output contract:
+
+- Generated tasks must be original and must not copy real exam questions.
+- AI output must pass the local JSON schema validator before being accepted.
+- Every generated task stores prompt, input parameters, generated result, student answer, examiner review, provider id, and validation result.
+- Every examiner review must include: 考查能力, 命题意图, 正确答案依据, 干扰项设计, 常见错误, 写作迁移, 下一步训练.
+
+Provider rule:
+
+- AI providers must be accessed through a common interface.
+- Supported provider families should remain swappable: OpenAI, Claude, DeepSeek, 通义, 豆包, Kimi, Ollama, MiniMax, and local fallback.
+- The current browser MVP can use the local examiner provider as a safe fallback, but the interface must be ready for backend or cloud provider replacement.
+
 ## Local Learner Access
 
 Local learner profiles are separate learning accounts on the same browser.

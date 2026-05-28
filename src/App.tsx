@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Dashboard } from "./components/Dashboard";
 import { DailyLearningSession, DailySummary, type DailySessionState } from "./components/DailyLearningSession";
 import { DailyWarmupReview, shouldShowDailyWarmup } from "./components/DailyWarmupReview";
 import { EssayLogicTrainer } from "./components/EssayLogicTrainer";
+import { GaokaoLearningPathPage } from "./components/GaokaoLearningPathPage";
+import { JuniorLanguageSpace } from "./components/JuniorLanguageSpace";
 import { LearnerProfileSwitcher } from "./components/LearnerProfileSwitcher";
 import { LongSentenceAnalyzer } from "./components/LongSentenceAnalyzer";
 import { MiniMaxSettingsPage } from "./components/MiniMaxSettingsPage";
+import { MonthlyReportPage } from "./components/MonthlyReportPage";
 import { ParagraphTrainer } from "./components/ParagraphTrainer";
 import { PlacementAssessment } from "./components/PlacementAssessment";
 import { ProgressPanel } from "./components/ProgressPanel";
 import { ScenarioTrainer } from "./components/ScenarioTrainer";
 import { SentenceExpander } from "./components/SentenceExpander";
 import { SentenceTrainer } from "./components/SentenceTrainer";
+import { SeniorExamSpace } from "./components/SeniorExamSpace";
 import { StageAssessmentTrainer } from "./components/StageAssessmentTrainer";
 import { StageSelector } from "./components/StageSelector";
+import { StudentProfilePage } from "./components/StudentProfilePage";
 import { VocabularyReviewTrainer } from "./components/VocabularyReviewTrainer";
 import { getLearningVersionConfig, learningVersionConfigs } from "./data/learningVersions";
 import { learnerProfileService, type LearnerProfile } from "./services/learnerProfileService";
@@ -242,7 +246,41 @@ export function App() {
       );
     }
     if (view === "dashboard") {
-      return <Dashboard onNavigate={setView} progress={progress} />;
+      return learningVersion === "primary_junior" ? (
+        <JuniorLanguageSpace onNavigate={setView} progress={progress} />
+      ) : (
+        <SeniorExamSpace onNavigate={setView} progress={progress} />
+      );
+    }
+    if (view === "junior-space") {
+      return <JuniorLanguageSpace onNavigate={setView} progress={progress} />;
+    }
+    if (view === "senior-space") {
+      return <SeniorExamSpace onNavigate={setView} progress={progress} />;
+    }
+    if (view === "word-sense") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="word_sense" />;
+    }
+    if (view === "sentence-builder") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="sentence_builder" />;
+    }
+    if (view === "reading-examiner") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="reading_examiner" />;
+    }
+    if (view === "guided-writing") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="guided_writing" />;
+    }
+    if (view === "independent-writing") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="independent_writing" />;
+    }
+    if (view === "exam-simulation") {
+      return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="exam_simulation" />;
+    }
+    if (view === "monthly-report") {
+      return <MonthlyReportPage progress={progress} />;
+    }
+    if (view === "student-profile") {
+      return <StudentProfilePage learningVersion={learningVersion} progress={progress} />;
     }
     if (view === "stages") {
       return <StageSelector activeStage={progress.currentStage} onStart={handleStageStart} />;
@@ -329,6 +367,33 @@ export function App() {
                 {learningVersionConfigs[version].shortLabel}
               </button>
             ))}
+            <button
+              className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "junior-space" ? "bg-leaf text-white" : "text-muted hover:bg-paper hover:text-ink"
+              }`}
+              onClick={() => setView("junior-space")}
+              type="button"
+            >
+              小初空间
+            </button>
+            <button
+              className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "senior-space" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
+              }`}
+              onClick={() => setView("senior-space")}
+              type="button"
+            >
+              高中大学
+            </button>
+            <button
+              className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "dashboard" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
+              }`}
+              onClick={() => setView("dashboard")}
+              type="button"
+            >
+              学习首页
+            </button>
             <button
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "daily" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
