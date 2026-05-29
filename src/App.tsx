@@ -3,6 +3,7 @@ import { DailyLearningSession, DailySummary, type DailySessionState } from "./co
 import { DailyWarmupReview, shouldShowDailyWarmup } from "./components/DailyWarmupReview";
 import { EssayLogicTrainer } from "./components/EssayLogicTrainer";
 import { GaokaoLearningPathPage } from "./components/GaokaoLearningPathPage";
+import { HomePage } from "./components/home/HomePage";
 import { JuniorLanguageSpace } from "./components/JuniorLanguageSpace";
 import { LearnerProfileSwitcher } from "./components/LearnerProfileSwitcher";
 import { LongSentenceAnalyzer } from "./components/LongSentenceAnalyzer";
@@ -18,10 +19,12 @@ import { SeniorExamSpace } from "./components/SeniorExamSpace";
 import { StageAssessmentTrainer } from "./components/StageAssessmentTrainer";
 import { StageSelector } from "./components/StageSelector";
 import { StudentProfilePage } from "./components/StudentProfilePage";
+import { TodayPathPage } from "./components/today/TodayPathPage";
 import { VocabularyReviewTrainer } from "./components/VocabularyReviewTrainer";
 import { getLearningVersionConfig, learningVersionConfigs } from "./data/learningVersions";
 import { learnerProfileService, type LearnerProfile } from "./services/learnerProfileService";
 import { progressService } from "./services/progressService";
+import { learningStore } from "./store/useLearningStore";
 import type {
   CheckInReport,
   DailyReviewCompletion,
@@ -34,11 +37,26 @@ import type {
   StudyRecord,
   UnknownWordRecord
 } from "./types/learning";
+import type { UserLearningProfile } from "./types/profile";
+
+const viewFromPath = () => {
+  if (window.location.pathname === "/") return "home";
+  if (window.location.pathname === "/today") return "today-path";
+  if (window.location.pathname === "/settings") return "settings";
+  return "daily";
+};
+
+const pathForView = (view: string) => {
+  if (view === "home") return "/";
+  if (view === "today-path") return "/today";
+  if (view === "settings") return "/settings";
+  return null;
+};
 
 export function App() {
   const [learnerState, setLearnerState] = useState(() => learnerProfileService.load());
   const activeProfile = learnerState.activeProfile;
-  const [view, setView] = useState("daily");
+  const [view, setView] = useState(viewFromPath);
   const [learningVersion, setLearningVersion] = useState<LearningVersion>(() => activeProfile.learningVersion);
   const [progress, setProgress] = useState<ProgressState>(() =>
     progressService.load(activeProfile.learningVersion, activeProfile.id)
@@ -46,6 +64,25 @@ export function App() {
   const [dailyCompletionReport, setDailyCompletionReport] = useState<CheckInReport>();
   const [dailySessionState, setDailySessionState] = useState<DailySessionState>();
   const versionConfig = getLearningVersionConfig(learningVersion);
+
+  const navigate = useCallback((nextView: string) => {
+    setView(nextView);
+    const nextPath = pathForView(nextView);
+    if (nextPath && window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
+  }, []);
+
+  const selectTodayPathProfile = (profile: UserLearningProfile) => {
+    learningStore.setProfile(profile);
+    const nextVersion: LearningVersion = profile.mode === "sense_space" ? "primary_junior" : "high_school";
+    const nextLearnerState = learnerProfileService.updateActive({ learningVersion: nextVersion });
+    setLearnerState(nextLearnerState);
+    setLearningVersion(nextVersion);
+    setDailyCompletionReport(undefined);
+    setDailySessionState(undefined);
+    setProgress(progressService.load(nextVersion, nextLearnerState.activeProfile.id));
+  };
 
   const resetProgressToDayOne = () => {
     setDailyCompletionReport(undefined);
@@ -118,6 +155,12 @@ export function App() {
   };
 
   useEffect(() => {
+    const onPopState = () => setView(viewFromPath());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("reset") !== "1") return;
     resetProgressToDayOne();
@@ -174,6 +217,18 @@ export function App() {
 
   const content = useMemo(() => {
     const activeUnknownWords = progress.unknownWords.filter((word) => !word.mastered);
+    if (view === "home") {
+      return (
+        <HomePage
+          existingProfile={learningStore.profile}
+          onNavigate={navigate}
+          onSelectProfile={selectTodayPathProfile}
+        />
+      );
+    }
+    if (view === "today-path") {
+      return <TodayPathPage onNavigate={navigate} />;
+    }
     if (view === "daily" && !activeProfile.placement) {
       return (
         <PlacementAssessment
@@ -247,16 +302,16 @@ export function App() {
     }
     if (view === "dashboard") {
       return learningVersion === "primary_junior" ? (
-        <JuniorLanguageSpace onNavigate={setView} progress={progress} />
+        <JuniorLanguageSpace onNavigate={navigate} progress={progress} />
       ) : (
-        <SeniorExamSpace onNavigate={setView} progress={progress} />
+        <SeniorExamSpace onNavigate={navigate} progress={progress} />
       );
     }
     if (view === "junior-space") {
-      return <JuniorLanguageSpace onNavigate={setView} progress={progress} />;
+      return <JuniorLanguageSpace onNavigate={navigate} progress={progress} />;
     }
     if (view === "senior-space") {
-      return <SeniorExamSpace onNavigate={setView} progress={progress} />;
+      return <SeniorExamSpace onNavigate={navigate} progress={progress} />;
     }
     if (view === "word-sense") {
       return <GaokaoLearningPathPage learningVersion={learningVersion} progress={progress} stage="word_sense" />;
@@ -288,7 +343,7 @@ export function App() {
     if (view === "scenario") {
       return (
         <ScenarioTrainer
-          onNavigate={setView}
+          onNavigate={navigate}
           onOutOfSyllabusWord={handleOutOfSyllabusWord}
           onRecord={handleRecord}
           onUnknownWord={handleUnknownWord}
@@ -300,28 +355,28 @@ export function App() {
       return (
         <StageAssessmentTrainer
           onComplete={handleAssessmentComplete}
-          onNavigate={setView}
+          onNavigate={navigate}
           progress={progress}
         />
       );
     }
     if (view === "sentence") {
-      return <SentenceTrainer onNavigate={setView} onRecord={handleRecord} progress={progress} />;
+      return <SentenceTrainer onNavigate={navigate} onRecord={handleRecord} progress={progress} />;
     }
     if (view === "expander") {
-      return <SentenceExpander onNavigate={setView} onRecord={handleRecord} />;
+      return <SentenceExpander onNavigate={navigate} onRecord={handleRecord} />;
     }
     if (view === "long") {
-      return <LongSentenceAnalyzer onNavigate={setView} onRecord={handleRecord} />;
+      return <LongSentenceAnalyzer onNavigate={navigate} onRecord={handleRecord} />;
     }
     if (view === "paragraph") {
-      return <ParagraphTrainer onNavigate={setView} onRecord={handleRecord} progress={progress} />;
+      return <ParagraphTrainer onNavigate={navigate} onRecord={handleRecord} progress={progress} />;
     }
     if (view === "essay") {
       return <EssayLogicTrainer onRecord={handleRecord} />;
     }
     if (view === "settings") {
-      return <MiniMaxSettingsPage onBack={() => setView("daily")} />;
+      return <MiniMaxSettingsPage onBack={() => navigate("daily")} />;
     }
     return <ProgressPanel onReset={resetProgressToDayOne} progress={progress} />;
   }, [
@@ -331,6 +386,7 @@ export function App() {
     activeProfile.displayName,
     activeProfile.placement,
     learningVersion,
+    navigate,
     progress,
     versionConfig.vocabularyReviewTrigger,
     view
@@ -371,7 +427,7 @@ export function App() {
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "junior-space" ? "bg-leaf text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("junior-space")}
+              onClick={() => navigate("junior-space")}
               type="button"
             >
               小初空间
@@ -380,25 +436,34 @@ export function App() {
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "senior-space" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("senior-space")}
+              onClick={() => navigate("senior-space")}
               type="button"
             >
               高中大学
             </button>
             <button
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
-                view === "dashboard" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
+                view === "home" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("dashboard")}
+              onClick={() => navigate("home")}
               type="button"
             >
               学习首页
             </button>
             <button
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "today-path" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
+              }`}
+              onClick={() => navigate("today-path")}
+              type="button"
+            >
+              Today Path
+            </button>
+            <button
+              className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "daily" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("daily")}
+              onClick={() => navigate("daily")}
               type="button"
             >
               今日任务
@@ -407,7 +472,7 @@ export function App() {
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "records" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("records")}
+              onClick={() => navigate("records")}
               type="button"
             >
               学习记录
@@ -416,7 +481,7 @@ export function App() {
               className={`rounded-md px-3 py-2 text-sm font-semibold ${
                 view === "settings" ? "bg-ocean text-white" : "text-muted hover:bg-paper hover:text-ink"
               }`}
-              onClick={() => setView("settings")}
+              onClick={() => navigate("settings")}
               type="button"
             >
               设置

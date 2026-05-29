@@ -6,6 +6,37 @@ export type LearningVersion = "high_school" | "primary_junior";
 
 export type StudyPace = "gentle" | "steady" | "stretch";
 
+export type LearningStage = "primary" | "middle" | "high" | "college";
+
+export type LearningMode = "sense_space" | "exam_expression";
+
+export type PressureLevel = "low" | "medium" | "high";
+
+export type AICompanionStyle =
+  | "gentle_friend"
+  | "reading_partner"
+  | "language_coach"
+  | "examiner"
+  | "academic_editor";
+
+export type ThemeCategory =
+  | "daily_life"
+  | "school_life"
+  | "family"
+  | "friendship"
+  | "emotion"
+  | "nature"
+  | "weather"
+  | "chinese_culture"
+  | "western_culture"
+  | "technology"
+  | "environment"
+  | "personal_growth"
+  | "philosophy"
+  | "social_responsibility";
+
+export type TaskStatus = "not_started" | "in_progress" | "completed" | "skipped";
+
 export type PlacementLevel =
   | "primary_junior_foundation"
   | "junior_bridge"
